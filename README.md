@@ -1,3 +1,3 @@
 # Madhuram Player
 Only music - No Ads
-Offiline music player
+Offline music player
