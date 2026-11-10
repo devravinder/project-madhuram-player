@@ -58,7 +58,7 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 - [ ] Show "file not found" for a 404 and hide tracks removed from the index
 - [ ] Download split tracks then play
 - [ ] Download as copy, and upload to own repo when signed in
-- [ ] Followed sources stored in the index
+- [x] Followed sources stored in the index (follow and unfollow sync across devices)
 
 ## Phase 6 — Polish
 

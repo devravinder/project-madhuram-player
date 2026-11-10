@@ -1,6 +1,7 @@
 import { Dexie, type EntityTable } from "dexie";
 import type {
   AppFile,
+  FollowedSource,
   OutboxItem,
   Playlist,
   PlaylistTombstone,
@@ -16,6 +17,7 @@ export const COLLECTIONS = {
   OUTBOX_COLLECTION: "outbox",
   SYNC_STATE_COLLECTION: "syncState",
   PLAYLIST_TOMBSTONES_COLLECTION: "playlistTombstones",
+  FOLLOWED_SOURCES_COLLECTION: "followedSources",
 } as const;
 
 class AppDB extends Dexie {
@@ -27,6 +29,10 @@ class AppDB extends Dexie {
   [COLLECTIONS.PLAYLIST_TOMBSTONES_COLLECTION]!: EntityTable<
     PlaylistTombstone,
     "id"
+  >;
+  [COLLECTIONS.FOLLOWED_SOURCES_COLLECTION]!: EntityTable<
+    FollowedSource,
+    "address"
   >;
 
   constructor() {
@@ -105,6 +111,11 @@ class AppDB extends Dexie {
     // Remembers deleted playlists until the library knows about it.
     this.version(9).stores({
       [COLLECTIONS.PLAYLIST_TOMBSTONES_COLLECTION]: "id",
+    });
+
+    // Public libraries the user follows.
+    this.version(10).stores({
+      [COLLECTIONS.FOLLOWED_SOURCES_COLLECTION]: "address",
     });
   }
 }

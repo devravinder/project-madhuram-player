@@ -14,6 +14,7 @@ import { deviceProvider } from "@/services/storage/deviceProvider";
 import { syncNow, type SyncMode } from "@/services/sync/engine";
 import { outbox, type StopReason } from "@/services/sync/outbox";
 import { syncPlaylists } from "@/services/sync/playlistsSync";
+import { syncSources } from "@/services/sync/sourcesSync";
 import type { OutboxItem } from "@/types/music";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
@@ -80,6 +81,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
   const items = useLiveQuery(() => db.outbox.toArray(), [], [] as OutboxItem[]);
   const playlists = useLiveQuery(() => db.playlists.toArray(), []);
+  const sources = useLiveQuery(() => db.followedSources.toArray(), []);
   const waiting = items.filter((item) => item.status !== "failed").length;
   const failedItems = items.filter((item) => item.status === "failed");
 
@@ -123,7 +125,10 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           { isCancelled: () => cancelled.current },
           mode,
         );
-        if (mode === "both" && !result.stoppedBy) await syncPlaylists(library);
+        if (mode === "both" && !result.stoppedBy) {
+          await syncPlaylists(library);
+          await syncSources(library);
+        }
         setLast({
           at: Date.now(),
           queued: result.queued,
@@ -159,19 +164,22 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     return true;
   }, []);
 
-  // Playlists follow the user without asking, a moment after each change.
+  // Playlists and followed libraries follow the user without asking,
+  // a moment after each change.
   useEffect(() => {
-    if (!signedIn || playlists === undefined) return;
+    if (!signedIn || playlists === undefined || sources === undefined) return;
     const timer = setTimeout(async () => {
       if (running.current) return;
       try {
-        await syncPlaylists(await getLibrary());
+        const library = await getLibrary();
+        await syncPlaylists(library);
+        await syncSources(library);
       } catch (problem) {
         report(problem);
       }
     }, PLAYLIST_SYNC_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [signedIn, playlists, getLibrary, report]);
+  }, [signedIn, playlists, sources, getLibrary, report]);
 
   // Removing the token stops a sync in progress; queued steps stay for later.
   useEffect(() => {

@@ -83,3 +83,10 @@ export type PlaylistTombstone = {
   id: string;
   deletedAt: Date;
 };
+
+// A public library the user listens to, as owner/repo.
+export type FollowedSource = {
+  address: string;
+  updatedAt: Date;
+  removed?: boolean; // kept so an unfollow reaches other devices
+};

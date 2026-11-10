@@ -35,6 +35,13 @@ export type Manifest = {
 // A deleted track stays as a tombstone so other devices remove it too.
 export type TrackEntry = TrackMeta & { manifest: string; deleted?: boolean };
 
+// A followed public library; a removed one stays as a tombstone.
+export type SourceEntry = {
+  address: string; // owner/repo
+  updatedAt: string;
+  removed?: boolean;
+};
+
 export type LibraryIndex = {
   app: typeof APP_MARKER;
   schemaVersion: number;
@@ -42,7 +49,7 @@ export type LibraryIndex = {
   repos: RepoInfo[];
   currentRepo: string;
   tracks: TrackEntry[];
-  sources: string[]; // followed public libraries, as owner/repo
+  sources: SourceEntry[]; // followed public libraries
   updatedAt: string;
 };
 
