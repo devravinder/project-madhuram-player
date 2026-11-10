@@ -69,6 +69,9 @@ export class GithubApi {
     try {
       response = await this.fetchFn(`${API}${path}`, {
         method: options.method ?? "GET",
+        // GitHub sends max-age=60; a cached branch ref would point at an
+        // old commit right after a push (for example a fresh repo's README).
+        cache: "no-store",
         headers: {
           Authorization: `Bearer ${this.token}`,
           Accept: options.accept ?? "application/vnd.github+json",
@@ -144,6 +147,37 @@ export class GithubApi {
     );
     if (!response) return null;
     return ((await response.json()) as { tree: TreeEntry[] }).tree;
+  }
+
+  // Entries of one tree object (not recursive).
+  async getTree(owner: string, repo: string, treeSha: string) {
+    const response = await this.request(
+      `/repos/${owner}/${repo}/git/trees/${treeSha}`,
+    );
+    return ((await response.json()) as { tree: TreeEntry[] }).tree;
+  }
+
+  // Reads a file from a known tree by walking its folders. Tree and blob
+  // ids never change, so this sees exactly that commit and returns null
+  // for a missing file without a 404 round trip.
+  async getFileInTree(
+    owner: string,
+    repo: string,
+    treeSha: string,
+    path: string,
+  ): Promise<RepoFile | null> {
+    const parts = path.split("/");
+    let sha = treeSha;
+    for (const [i, part] of parts.entries()) {
+      const type = i === parts.length - 1 ? "blob" : "tree";
+      const entry = (await this.getTree(owner, repo, sha)).find(
+        (e) => e.path === part && e.type === type,
+      );
+      if (!entry) return null;
+      sha = entry.sha;
+    }
+    const blob = await this.readBlob(owner, repo, sha);
+    return { sha, text: await blob.text() };
   }
 
   async getHead(

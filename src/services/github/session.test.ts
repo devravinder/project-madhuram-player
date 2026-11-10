@@ -46,4 +46,40 @@ describe("openLibrary", () => {
     expect(status).toBe("created");
     expect(fake.paths("project-music-files")).toEqual(["app.ts"]);
   });
+
+  // Regression: GitHub sends max-age=60, so a browser cached the branch
+  // ref of the fresh repo (README only) and the next read got a 404 for
+  // index.json. Requests must opt out of the HTTP cache.
+  it("reads a new library through a browser-like HTTP cache", async () => {
+    const fake = new FakeGithub();
+    const cache = new Map<string, Response>();
+    const cachingFetch: typeof fetch = async (input, init) => {
+      const key = String(input);
+      const cacheable = (init?.method ?? "GET") === "GET" && init?.cache !== "no-store";
+      const hit = cacheable ? cache.get(key) : undefined;
+      if (hit) return hit.clone();
+      const response = await fake.fetch(input, init);
+      if (cacheable && response.ok) cache.set(key, response.clone());
+      return response;
+    };
+
+    const { library } = await openLibrary({
+      token: fake.token,
+      login: fake.login,
+      repoName: "project-music-files",
+      config,
+      fetchFn: cachingFetch,
+      sleep: noSleep,
+    });
+    expect((await library.read()).index.config).toEqual(config);
+    expect(await library.readText("playlists.json")).toBeUndefined();
+  });
+
+  it("does not ask for files that a new library does not have yet", async () => {
+    const fake = new FakeGithub();
+    const { library } = await open(fake);
+    await library.readText("playlists.json");
+
+    expect(fake.requests.filter((r) => r.includes("/contents/"))).toEqual([]);
+  });
 });

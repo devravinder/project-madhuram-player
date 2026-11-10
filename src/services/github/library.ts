@@ -1,4 +1,5 @@
 import { GithubApi, isConflict, type Head, type TreeChange } from "./api";
+import { realSleep, type Sleep } from "./discovery";
 import {
   INDEX_PATH,
   parseIndex,
@@ -7,6 +8,8 @@ import {
 } from "./indexTypes";
 
 const MAX_ATTEMPTS = 5;
+const READ_ATTEMPTS = 4;
+const READ_DELAY_MS = 750;
 
 export class LibraryBusyError extends Error {
   constructor() {
@@ -30,36 +33,60 @@ export class LibraryRepo {
   readonly owner: string;
   readonly repo: string;
   private readonly branch: string;
+  private readonly sleep: Sleep;
 
-  constructor(api: GithubApi, owner: string, repo: string, branch = "main") {
+  constructor(
+    api: GithubApi,
+    owner: string,
+    repo: string,
+    branch = "main",
+    sleep: Sleep = realSleep,
+  ) {
     this.api = api;
     this.owner = owner;
     this.repo = repo;
     this.branch = branch;
+    this.sleep = sleep;
   }
 
   // Head first, then the index at that exact commit, so a later push
-  // makes the update fail instead of silently overwriting it.
+  // makes the update fail instead of silently overwriting it. Right after
+  // a repo is created GitHub can briefly serve an older head, so a
+  // missing index is retried a few times before giving up.
   async read(): Promise<LibraryState> {
-    const head = await this.api.getHead(this.owner, this.repo, this.branch);
-    if (!head) throw new Error(`Repository ${this.repo} has no commits.`);
+    for (let attempt = 1; ; attempt++) {
+      const head = await this.api.getHead(this.owner, this.repo, this.branch);
+      const file = head
+        ? await this.api.getFileInTree(
+            this.owner,
+            this.repo,
+            head.treeSha,
+            INDEX_PATH,
+          )
+        : null;
+      if (head && file) return { index: parseIndex(file.text), head };
 
-    const file = await this.api.getFile(
-      this.owner,
-      this.repo,
-      INDEX_PATH,
-      head.commitSha,
-    );
-    if (!file) throw new Error(`Repository ${this.repo} has no ${INDEX_PATH}.`);
-    return { index: parseIndex(file.text), head };
+      if (attempt >= READ_ATTEMPTS) {
+        throw new Error(
+          head
+            ? `Repository ${this.repo} has no ${INDEX_PATH}.`
+            : `Repository ${this.repo} has no commits.`,
+        );
+      }
+      await this.sleep(READ_DELAY_MS * attempt);
+    }
   }
 
+  // Undefined when the file does not exist at that commit.
   async readText(path: string, head?: Head) {
-    const file = await this.api.getFile(
+    const at =
+      head ?? (await this.api.getHead(this.owner, this.repo, this.branch));
+    if (!at) return undefined;
+    const file = await this.api.getFileInTree(
       this.owner,
       this.repo,
+      at.treeSha,
       path,
-      head?.commitSha,
     );
     return file?.text;
   }

@@ -37,7 +37,13 @@ export async function openLibrary(options: OpenLibraryOptions) {
   if (found.status === "name-taken") throw new LibraryNameTakenError(found.repo);
 
   return {
-    library: new LibraryRepo(api, options.login, options.repoName, found.branch),
+    library: new LibraryRepo(
+      api,
+      options.login,
+      options.repoName,
+      found.branch,
+      options.sleep,
+    ),
     status: found.status,
   };
 }

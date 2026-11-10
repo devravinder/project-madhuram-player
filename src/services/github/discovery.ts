@@ -101,7 +101,10 @@ export async function findOrCreateLibrary(
     };
   }
 
-  const existing = await api.getFile(owner, repoName, INDEX_PATH);
+  const head = await api.getHead(owner, repoName, repo.default_branch);
+  const existing = head
+    ? await api.getFileInTree(owner, repoName, head.treeSha, INDEX_PATH)
+    : null;
   if (existing) {
     try {
       return {
@@ -118,7 +121,7 @@ export async function findOrCreateLibrary(
     }
   }
 
-  const root = await api.getRootEntries(owner, repoName, repo.default_branch);
+  const root = head ? await api.getTree(owner, repoName, head.treeSha) : null;
   const isEmpty = !root || root.every((entry) => HARMLESS_ROOT_FILES.test(entry.path));
   if (!isEmpty) return { status: "name-taken", repo: repoName };
 

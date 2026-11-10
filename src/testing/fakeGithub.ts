@@ -50,6 +50,8 @@ export class FakeGithub {
   private refLag = 0;
   private beforeRefUpdate?: () => Promise<void>;
   private counter = 0;
+  // Folder ids from tree listings, so nested trees can be fetched.
+  private readonly folders = new Map<string, { snapshot: Snapshot; prefix: string }>();
 
   constructor(login = "tester", token = "good-token") {
     this.login = login;
@@ -270,19 +272,34 @@ export class FakeGithub {
   }
 
   private rootTree(repo: FakeRepo, ref: string) {
+    // A branch name, a tree id, or a folder id handed out by an earlier listing.
+    const folder = this.folders.get(ref);
+    if (folder) return this.listing(folder.snapshot, folder.prefix, ref);
+    const tree = repo.trees.get(ref);
+    if (tree) return this.listing(tree, "", ref);
+
     const commitId = repo.branches.get(ref);
     if (!repo.branches.size) return failure(409, "Git Repository is empty.");
     if (!commitId) return failure(404, "Not Found");
+    const treeSha = repo.commits.get(commitId)!.tree;
+    return this.listing(repo.trees.get(treeSha)!, "", treeSha);
+  }
 
-    const snapshot = repo.trees.get(repo.commits.get(commitId)!.tree)!;
+  private async listing(snapshot: Snapshot, prefix: string, sha: string) {
     const entries = new Map<string, { path: string; type: string; sha: string }>();
-    for (const [path, sha] of Object.entries(snapshot)) {
-      const [first, ...tail] = path.split("/");
-      entries.set(first, tail.length
-        ? { path: first, type: "tree", sha: `dir-${first}` }
-        : { path: first, type: "blob", sha });
+    for (const [path, blob] of Object.entries(snapshot)) {
+      if (!path.startsWith(prefix)) continue;
+      const [first, ...tail] = path.slice(prefix.length).split("/");
+      if (!tail.length) {
+        entries.set(first, { path: first, type: "blob", sha: blob });
+      } else if (!entries.has(first)) {
+        const inner = `${prefix}${first}/`;
+        const id = await sha1Hex(`folder ${JSON.stringify(Object.entries(snapshot).sort())} ${inner}`);
+        this.folders.set(id, { snapshot, prefix: inner });
+        entries.set(first, { path: first, type: "tree", sha: id });
+      }
     }
-    return json({ sha: repo.commits.get(commitId)!.tree, tree: [...entries.values()] });
+    return json({ sha, tree: [...entries.values()] });
   }
 
   private readBlob(repo: FakeRepo, sha: string, headers: Headers) {
