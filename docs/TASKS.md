@@ -42,12 +42,12 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 - [x] Token setup screen and validation (login first, with "Try without login")
 - [~] Remove token action: clears the token and keeps local data, with a link to revoke on GitHub (outbox stop comes with the outbox)
 - [~] Find an existing library repo: reuse if marked, adopt if empty, create if missing, never touch other repos (logic and tests done; the "pick another name" prompt arrives with the Sync screen)
-- [ ] Recover missing shard repos by marker
+- [x] Recover missing shard repos by marker
 - [x] Create repos, read and write `index.json` with conflict retry
 - [x] Add `sha256` and `parts` to tracks when syncing (hash, parts and manifest are written at upload)
 - [x] Byte split, manifest, atomic commit upload, with size and hash checks on download
 - [ ] Persisted outbox with resume
-- [ ] Repo rollover at the size limit
+- [x] Repo rollover at the size limit (a large file can span repos; leftover space is reused)
 - [ ] Playlists sync and tombstones
 - [ ] Sync screen: push local, pull remote
 

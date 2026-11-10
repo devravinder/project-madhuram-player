@@ -24,31 +24,47 @@ const HARMLESS_ROOT_FILES = /^(readme(\.\w+)?|license(\.\w+)?|\.gitignore)$/i;
 const HEAD_ATTEMPTS = 6;
 const HEAD_DELAY_MS = 1000;
 
-type Sleep = (ms: number) => Promise<void>;
-const realSleep: Sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+export type Sleep = (ms: number) => Promise<void>;
+export const realSleep: Sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function writeIndex(
+export async function writeTextFile(
+  api: GithubApi,
+  owner: string,
+  repo: string,
+  branch: string,
+  path: string,
+  text: string,
+  message: string,
+) {
+  const head = await api.getHead(owner, repo, branch);
+
+  if (!head) {
+    await api.putFile(owner, repo, path, text, message);
+    return;
+  }
+  const blob = await api.createTextBlob(owner, repo, text);
+  await api.commitChanges(owner, repo, head, message, [{ path, sha: blob }]);
+}
+
+const writeIndex = (
   api: GithubApi,
   owner: string,
   repo: string,
   branch: string,
   index: LibraryIndex,
-) {
-  const text = serializeIndex(index);
-  const head = await api.getHead(owner, repo, branch);
-
-  if (!head) {
-    await api.putFile(owner, repo, INDEX_PATH, text, "Create library index");
-    return;
-  }
-  const blob = await api.createTextBlob(owner, repo, text);
-  await api.commitChanges(owner, repo, head, "Create library index", [
-    { path: INDEX_PATH, sha: blob },
-  ]);
-}
+) =>
+  writeTextFile(
+    api,
+    owner,
+    repo,
+    branch,
+    INDEX_PATH,
+    serializeIndex(index),
+    "Create library index",
+  );
 
 // A new repository takes a moment before its first commit is readable.
-async function waitForHead(
+export async function waitForHead(
   api: GithubApi,
   owner: string,
   repo: string,

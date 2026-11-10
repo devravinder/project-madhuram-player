@@ -7,12 +7,20 @@ import {
   type PartRef,
   type TrackEntry,
 } from "@/services/github/indexTypes";
+import { realSleep, type Sleep } from "@/services/github/discovery";
 import { LibraryRepo } from "@/services/github/library";
+import { rolloverRepo } from "@/services/github/shards";
 import { sha256Hex } from "@/services/hash";
 import type { TrackFiles, TrackMeta } from "@/services/storage/types";
 import { manifestPath, partPath, splitBlob } from "./split";
 
 const MAX_COMMIT_ATTEMPTS = 5;
+
+export class InvalidLimitsError extends Error {
+  constructor() {
+    super("The file size limit is larger than the repository size limit.");
+  }
+}
 
 export class RepoFullError extends Error {
   readonly repo: string;
@@ -33,7 +41,19 @@ type Planned = {
 
 export type UploadOptions = {
   onProgress?: (donePartsCount: number, totalParts: number) => void;
+  sleep?: Sleep;
 };
+
+const MAX_ROLLOVERS = 10;
+
+// Open repos in order of preference: the current one first.
+function openRepos(index: LibraryIndex) {
+  const open = index.repos.filter((repo) => !repo.full);
+  return [
+    ...open.filter((repo) => repo.name === index.currentRepo),
+    ...open.filter((repo) => repo.name !== index.currentRepo),
+  ];
+}
 
 // Picks the repo for each part, counting what this upload already planned.
 function planParts(
@@ -49,16 +69,39 @@ function planParts(
     if (!source) continue;
 
     splitBlob(source, index.config.maxFileBytes).forEach((blob, n) => {
-      const repo = index.repos.find((r) => r.name === index.currentRepo)!;
-      const used = repo.usedBytes + (planned.get(repo.name) ?? 0);
-      if (repo.full || used + blob.size > index.config.maxRepoBytes) {
-        throw new RepoFullError(repo.name);
-      }
+      const repo = openRepos(index).find(
+        (candidate) =>
+          candidate.usedBytes + (planned.get(candidate.name) ?? 0) + blob.size <=
+          index.config.maxRepoBytes,
+      );
+      if (!repo) throw new RepoFullError(index.currentRepo);
+
       planned.set(repo.name, (planned.get(repo.name) ?? 0) + blob.size);
       result.push({ file, n, blob, repo: repo.name, path: partPath(trackId, file, n) });
     });
   }
   return result;
+}
+// Starts a new shard repo whenever no open repo has room for the parts.
+async function planWithRollover(
+  library: LibraryRepo,
+  trackId: string,
+  files: TrackFiles,
+  first: LibraryIndex,
+  options: UploadOptions,
+): Promise<Planned[]> {
+  let index = first;
+  for (let rollovers = 0; ; rollovers++) {
+    try {
+      return planParts(index, trackId, files);
+    } catch (error) {
+      if (!(error instanceof RepoFullError) || rollovers >= MAX_ROLLOVERS) {
+        throw error;
+      }
+      await rolloverRepo(library, options.sleep ?? realSleep);
+      index = (await library.read()).index;
+    }
+  }
 }
 
 // Shard repos get their own commit; the primary repo's parts ride with the index.
@@ -107,11 +150,14 @@ export async function uploadTrack(
   const mediaSha = await sha256Hex(files.media);
 
   const { index } = await library.read();
+  if (index.config.maxFileBytes > index.config.maxRepoBytes) {
+    throw new InvalidLimitsError();
+  }
   const existing = index.tracks.find((t) => t.id === meta.id && !t.deleted);
   if (existing?.sha256 === mediaSha) return existing;
 
   const coverSha = files.cover ? await sha256Hex(files.cover) : undefined;
-  const planned = planParts(index, meta.id, files);
+  const planned = await planWithRollover(library, meta.id, files, index, options);
 
   // Upload every part; remember each blob id.
   const refs: PartRef[] = [];

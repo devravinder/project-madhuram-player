@@ -12,7 +12,7 @@ import { makeFile, randomBytes } from "@/testing/files";
 import { beforeEach, describe, expect, it } from "vitest";
 import { fetchTrackFiles, IntegrityError } from "./download";
 import { joinParts, splitBlob } from "./split";
-import { RepoFullError, uploadTrack } from "./upload";
+import { InvalidLimitsError, uploadTrack } from "./upload";
 
 const NAME = "project-music-files";
 const PART = 100;
@@ -161,18 +161,18 @@ describe("uploadTrack", () => {
     expect(savedIndex().tracks.map((t) => t.id).sort()).toEqual(["kl6", "mn7", "theirs"]);
   });
 
-  it("refuses when the repo has no room, and commits nothing", async () => {
-    await start(150);
+  it("refuses limits that can never fit, without making repos", async () => {
+    await start(50); // repo limit below the 100 byte part size
     const commits = fake.commitCount(NAME);
 
     await expect(
       uploadTrack(library, meta("op8"), { media: makeFile("x.bin", randomBytes(200)) }),
-    ).rejects.toBeInstanceOf(RepoFullError);
+    ).rejects.toBeInstanceOf(InvalidLimitsError);
 
     expect(fake.commitCount(NAME)).toBe(commits);
+    expect(fake.repos.size).toBe(1);
     expect(savedIndex().tracks).toEqual([]);
   });
-
   it("reports progress for each part", async () => {
     const seen: number[] = [];
     await uploadTrack(

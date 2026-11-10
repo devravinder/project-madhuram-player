@@ -4,7 +4,12 @@ import { base64ToText, blobToBase64, textToBase64 } from "./base64";
 const API = "https://api.github.com";
 const DEFAULT_RETRY_SECONDS = 60;
 
-export type Repo = { name: string; private: boolean; default_branch: string };
+export type Repo = {
+  name: string;
+  private: boolean;
+  default_branch: string;
+  size?: number; // KiB, as GitHub reports it (can lag behind)
+};
 export type Head = { branch: string; commitSha: string; treeSha: string };
 export type TreeEntry = { path: string; type: "blob" | "tree"; sha: string };
 // A null sha removes the path.

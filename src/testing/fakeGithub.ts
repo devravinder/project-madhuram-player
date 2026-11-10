@@ -323,7 +323,13 @@ export class FakeGithub {
   }
 
   private repoJson(repo: FakeRepo) {
-    return { name: repo.name, private: repo.private, default_branch: BRANCH };
+    const bytes = [...repo.blobs.values()].reduce((sum, b) => sum + b.length, 0);
+    return {
+      name: repo.name,
+      private: repo.private,
+      default_branch: BRANCH,
+      size: Math.round(bytes / 1024),
+    };
   }
 
   private mustRepo(name: string) {
