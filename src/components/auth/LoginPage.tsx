@@ -28,38 +28,6 @@ export default function LoginPage() {
           <p className="text-sm text-muted-foreground">Only Music - No Ads</p>
         </div>
 
-        <details open className="text-sm text-muted-foreground">
-          <summary className="cursor-pointer text-foreground">
-            How do I get a token?
-          </summary>
-          <ol className="list-decimal pl-5 mt-2 flex flex-col gap-1">
-            <li>
-              Open{" "}
-              <a
-                href={NEW_TOKEN_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary underline"
-              >
-                GitHub fine-grained token settings
-              </a>
-              .
-            </li>
-            <li>Choose an expiry, such as 90 days.</li>
-            <li>Repository access: All repositories.</li>
-            <li>
-              Permissions: Contents (read and write) and Administration (read
-              and write), so the app can create your music repositories.
-            </li>
-            <li>Generate the token and paste it below.</li>
-          </ol>
-          <p className="mt-2">
-            The token is stored only in this browser. Consider a separate GitHub
-            account for music, because these permissions are broad. You can
-            remove the token any time in Settings.
-          </p>
-        </details>
-
         <form onSubmit={submit} className="flex flex-col gap-3">
           <label htmlFor="github-token" className="text-sm font-medium">
             GitHub access token
@@ -69,7 +37,7 @@ export default function LoginPage() {
             type="password"
             autoComplete="off"
             spellCheck={false}
-            placeholder="github_pat_..."
+            placeholder="Paste your access token here"
             value={token}
             onChange={(event) => setToken(event.target.value)}
           />
@@ -95,6 +63,38 @@ export default function LoginPage() {
           Your music stays on this device and works offline. You can sign in
           later from Settings.
         </p>
+
+        <details className="text-sm text-muted-foreground">
+          <summary className="cursor-pointer text-foreground">
+            How do I get a token?
+          </summary>
+          <ol className="list-decimal pl-5 mt-2 flex flex-col gap-1">
+            <li>
+              Open{" "}
+              <a
+                href={NEW_TOKEN_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary underline"
+              >
+                GitHub fine-grained token settings
+              </a>
+              .
+            </li>
+            <li>Choose an expiry, such as 90 days.</li>
+            <li>Repository access: All repositories.</li>
+            <li>
+              Permissions: Contents (read and write) and Administration (read
+              and write), so the app can create your music repositories.
+            </li>
+            <li>Generate the token and paste it in the box above.</li>
+          </ol>
+          <p className="mt-2">
+            The token is stored only in this browser. Consider a separate GitHub
+            account for music, because these permissions are broad. You can
+            remove the token any time in Settings.
+          </p>
+        </details>
       </div>
     </main>
   );
