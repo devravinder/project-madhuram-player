@@ -121,3 +121,30 @@ test("deletes a backed-up song from GitHub, or from this device only", async ({ 
   await expect(page.getByText("1 songs")).toBeVisible();
   await expect(page.getByText("Kept", { exact: true })).toBeVisible();
 });
+
+test("carries on with unfinished sync steps when the app opens signed in", async ({ page }) => {
+  const { tryWithoutLogin, installFakeGithub } = await import("./fixtures");
+  await tryWithoutLogin(page);
+  await importFiles(page, [{ name: "Leftover.wav", buffer: wavBuffer(2) }]);
+
+  // As if the app was closed in the middle of an upload.
+  await page.evaluate(async () => {
+    const { default: db } = await import(/* @vite-ignore */ "/src/services/db.ts");
+    const [song] = await db.songs.toArray();
+    await db.outbox.add({
+      id: `push:${song.id}`, op: "push", trackId: song.id, status: "running",
+      attempts: 0, nextAttemptAt: 0, createdAt: Date.now(),
+    });
+    localStorage.setItem("madhuram.syncMode", "upload");
+  });
+
+  await installFakeGithub(page);
+  await page.goto("/#/settings");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByLabel("GitHub access token").fill("good-token");
+  await page.getByRole("button", { name: "Sign in" }).click();
+
+  await expect.poll(() => remoteTitles(page).catch(() => []), { timeout: 20_000 }).toEqual(["Leftover"]);
+  await page.goto("/#/settings");
+  await expect(page.getByText("Synced 1 item.")).toBeVisible();
+});

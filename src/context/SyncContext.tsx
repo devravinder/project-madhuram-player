@@ -9,8 +9,10 @@ import type { LibraryRepo } from "@/services/github/library";
 import { LibraryNameTakenError, openLibrary } from "@/services/github/session";
 import { HttpError } from "@/services/httpError";
 import {
+  getLastSyncMode,
   getLibraryRepoName,
   isValidRepoName,
+  setLastSyncMode,
   setLibraryRepoName,
 } from "@/services/settingsStore";
 import { deviceProvider } from "@/services/storage/deviceProvider";
@@ -124,7 +126,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   );
 
   const running = useRef(false);
-  const lastMode = useRef<SyncMode>("both");
+  const lastMode = useRef<SyncMode>(getLastSyncMode());
+  const resumedOnOpen = useRef(false);
   const cancelled = useRef(false);
   const opened = useRef<{ key: string; library: LibraryRepo }>(undefined);
 
@@ -166,6 +169,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     async (mode: SyncMode = "both") => {
       if (!signedIn || running.current) return;
       lastMode.current = mode;
+      setLastSyncMode(mode);
       clearResume();
       running.current = true;
       cancelled.current = false;
@@ -285,6 +289,20 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     window.addEventListener("online", resume);
     return () => window.removeEventListener("online", resume);
   }, [signedIn, sync]);
+
+  // A sync the app was closed in the middle of carries on when it opens
+  // again, in the same mode. Failed steps wait for "Retry".
+  useEffect(() => {
+    if (!signedIn || resumedOnOpen.current) return;
+    resumedOnOpen.current = true;
+    void (async () => {
+      const unfinished = await db.outbox
+        .where("status")
+        .anyOf("pending", "running")
+        .count();
+      if (unfinished > 0) await syncRef.current?.(lastMode.current);
+    })();
+  }, [signedIn]);
 
   // A sync cut off while the app was in the background carries on
   // when the user comes back to it.
