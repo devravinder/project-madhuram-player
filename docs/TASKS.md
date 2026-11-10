@@ -75,3 +75,4 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 - [x] Unfinished sync steps resume when the app opens
 - [x] No automatic uploads; Settings lists songs not backed up, upload one or all
 - [x] Player redesign: fits every screen, main controls only, the rest under "More options"
+- [x] Tap controls on the cover and video (±15s, play), double tap jumps 10s, fullscreen on video

@@ -4,14 +4,10 @@ import { formatTime } from "@/services/timeUtil";
 import {
   ChevronDown,
   Ellipsis,
-  Maximize,
   Pause,
-  PictureInPicture2,
   Play,
   Repeat,
   Repeat1,
-  RotateCcw,
-  RotateCw,
   Shuffle,
   SkipBack,
   SkipForward,
@@ -20,12 +16,11 @@ import {
 import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import AudioImage from "../AudioImage";
 import { Like } from "../Elements";
+import MediaOverlay from "./MediaOverlay";
 import { ProgressBar } from "./ProgressBar";
 import SleeperTimer from "./SleeperTimer";
 import { useVideoActions, VideoSurface } from "./VideoSurface";
 import { VolumeSlider } from "./VolumeSlider";
-
-const SEEK_STEP = 15;
 
 // A round, labelled button for the player; `active` marks a mode that is on.
 function PlayerButton({
@@ -47,20 +42,6 @@ function PlayerButton({
   );
 }
 
-function SeekButton({ forward, onClick }: { forward?: boolean; onClick: VoidFunction }) {
-  const Icon = forward ? RotateCw : RotateCcw;
-  return (
-    <PlayerButton
-      label={forward ? `Forward ${SEEK_STEP} seconds` : `Back ${SEEK_STEP} seconds`}
-      onClick={onClick}
-      className="relative text-white/70"
-    >
-      <Icon className="size-7 stroke-1" />
-      <span className="absolute text-[10px] leading-none">{SEEK_STEP}</span>
-    </PlayerButton>
-  );
-}
-
 // Secondary controls, in a small panel above the "More options" button.
 function MoreControls(props: {
   onClose: VoidFunction;
@@ -70,7 +51,6 @@ function MoreControls(props: {
   repeatLabel: string;
   repeatOn: boolean;
   toggleRepeat: VoidFunction;
-  seekBy: (seconds: number) => void;
   volume: number;
   setVolume: (volume: number) => void;
   sleepOn: boolean;
@@ -107,8 +87,6 @@ function MoreControls(props: {
               >
                 <Shuffle className="size-5" />
               </PlayerButton>
-              <SeekButton onClick={() => props.seekBy(-SEEK_STEP)} />
-              <SeekButton forward onClick={() => props.seekBy(SEEK_STEP)} />
               <PlayerButton
                 label={props.repeatLabel}
                 aria-pressed={props.repeatOn}
@@ -136,9 +114,9 @@ function MoreControls(props: {
   );
 }
 
-// The open player: a slim top bar, the cover or video filling the free
-// space, and the controls kept compact at the bottom. On short landscape
-// screens the media and the controls sit side by side.
+// The open player: the cover or video filling the free space, with tap
+// controls over it, and the main controls kept compact at the bottom. On
+// short landscape screens the media and the controls sit side by side.
 export default function FullScreenPlayer({ onClose }: { onClose: VoidFunction }) {
   const { favourites, toggleLike } = usePlaylists();
   const [showMenu, setShowMenu] = useState(false);
@@ -183,18 +161,38 @@ export default function FullScreenPlayer({ onClose }: { onClose: VoidFunction })
     repeatMode === "one" ? "Repeat one" : repeatMode === "all" ? "Repeat all" : "Repeat off";
 
   let media: ReactNode;
+  const seekBy = (seconds: number) =>
+    seek(Math.min(duration, Math.max(0, progress + seconds)));
+  const overlay = (
+    <MediaOverlay
+      isPlaying={isPlaying}
+      togglePlay={togglePlay}
+      seekBy={seekBy}
+      video={isVideo ? video : undefined}
+      className="rounded-2xl"
+    />
+  );
   if (isVideo) {
-    media = <VideoSurface hostRef={videoHost} className="size-full" />;
+    // The overlay sits beside the video host, so fullscreen shows only the video.
+    media = (
+      <div className="relative size-full">
+        <VideoSurface hostRef={videoHost} className="size-full" />
+        {overlay}
+      </div>
+    );
   } else {
     // The cover stays square and as large as the free space allows.
     media = (
       <div className="size-full grid place-items-center [container-type:size]">
-        <AudioImage
-          id={song.coverImageId}
-          src={song.coverUrl}
-          alt={song.title}
-          className="w-[min(100cqw,100cqh)] h-auto max-h-full aspect-square object-cover rounded-2xl shadow-2xl"
-        />
+        <div className="relative w-[min(100cqw,100cqh)] aspect-square rounded-2xl shadow-2xl">
+          <AudioImage
+            id={song.coverImageId}
+            src={song.coverUrl}
+            alt={song.title}
+            className="size-full object-cover rounded-2xl"
+          />
+          {overlay}
+        </div>
       </div>
     );
   }
@@ -212,21 +210,8 @@ export default function FullScreenPlayer({ onClose }: { onClose: VoidFunction })
           isVideo ? "max-w-5xl" : "max-w-lg short:max-w-4xl"
         }`}
       >
-        {/* Video keeps a slim bar for its own buttons; songs give the space to the cover. */}
-        {isVideo ? (
-          <header className="shrink-0 h-12 px-2 flex items-center justify-end gap-1">
-            {video.canPictureInPicture && (
-              <PlayerButton label="Picture in picture" onClick={video.togglePictureInPicture}>
-                <PictureInPicture2 className="size-5" />
-              </PlayerButton>
-            )}
-            <PlayerButton label="Fullscreen" onClick={video.enterFullscreen}>
-              <Maximize className="size-5" />
-            </PlayerButton>
-          </header>
-        ) : (
-          <div className="shrink-0 h-4" />
-        )}
+        {/* Fullscreen and picture-in-picture now sit on the video itself. */}
+        <div className="shrink-0 h-4" />
 
         <div className="flex-1 min-h-0 flex flex-col short:flex-row gap-4 px-4 pb-4">
           <div className="flex-1 min-h-0 min-w-0">{media}</div>
@@ -305,9 +290,6 @@ export default function FullScreenPlayer({ onClose }: { onClose: VoidFunction })
                     repeatLabel={repeatLabel}
                     repeatOn={repeatMode !== "off"}
                     toggleRepeat={toggleRepeat}
-                    seekBy={(seconds) =>
-                      seek(Math.min(duration, Math.max(0, progress + seconds)))
-                    }
                     volume={volume}
                     setVolume={setVolume}
                     sleepOn={sleepTimer.isActive}
