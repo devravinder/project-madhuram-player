@@ -53,11 +53,11 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 
 ## Phase 5 — Public libraries
 
-- [ ] Follow a public library by address
-- [ ] Stream unsplit tracks from raw URLs
-- [ ] Show "file not found" for a 404 and hide tracks removed from the index
-- [ ] Download split tracks then play
-- [ ] Download as copy, and upload to own repo when signed in
+- [x] Follow a public library by address (owner/repo or a GitHub link, no login)
+- [x] Stream unsplit tracks from raw URLs
+- [x] Show "file not found" for a 404 and hide tracks removed from the index
+- [x] Download split tracks then play
+- [x] Download as copy (one or all), and upload to own repo when signed in
 - [x] Followed sources stored in the index (follow and unfollow sync across devices)
 
 ## Phase 6 — Polish

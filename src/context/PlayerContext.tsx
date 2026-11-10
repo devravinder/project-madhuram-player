@@ -9,7 +9,7 @@ import React, {
   useState,
 } from "react";
 import { usePlaylists } from "./PlaylistContext";
-import { getFile } from "@/services/filesService";
+import { playbackErrorMessage, resolveSource } from "@/services/playback/source";
 import { mediaElement } from "@/services/mediaElement";
 import { IMAGE_512, UNKNOWN } from "@/constants";
 import { toast } from "sonner";
@@ -51,6 +51,7 @@ const setMediaSession = (song: Song, artworkUrl?: string, type?: string) => {
       : [{ src: IMAGE_512, sizes: "512x512", type: "image/png" }],
   });
 };
+const DOWNLOAD_TOAST = "remote-download";
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
 
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
@@ -104,23 +105,45 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       const request = ++loadRequestRef.current;
       setCurrentSong(song);
 
-      const [audioFile, coverFile] = await Promise.all([
-        getFile(song.mediaId),
-        song.coverImageId ? getFile(song.coverImageId) : undefined,
-      ]);
-      if (request !== loadRequestRef.current) return;
+      let source;
+      try {
+        source = await resolveSource(song, {
+          onDownloadStart: () =>
+            toast.loading(`Downloading ${song.title}...`, { id: DOWNLOAD_TOAST }),
+        });
+      } catch (error) {
+        toast.dismiss(DOWNLOAD_TOAST);
+        if (request === loadRequestRef.current) {
+          // The old track must not keep playing under the new title.
+          audio.pause();
+          setIsPlaying(false);
+          toast.error(playbackErrorMessage(error));
+        }
+        return;
+      }
+      toast.dismiss(DOWNLOAD_TOAST);
 
-      if (!audioFile) {
+      if (request !== loadRequestRef.current) {
+        source?.objectUrls.forEach((url) => URL.revokeObjectURL(url));
+        return;
+      }
+      if (!source) {
+        audio.pause();
         setIsPlaying(false);
         toast.error("File not found, unable to play");
         return;
       }
 
       revokeObjectUrls();
-      const audioUrl = URL.createObjectURL(audioFile.data);
-      const coverUrl = coverFile && URL.createObjectURL(coverFile.data);
-      objectUrlsRef.current = coverUrl ? [audioUrl, coverUrl] : [audioUrl];
-
+      objectUrlsRef.current = source.objectUrls;
+      const audioUrl = source.src;
+      const coverUrl = source.coverUrl;
+      // Remote covers are only known now; show them in the player.
+      if (song.remote && coverUrl) {
+        setCurrentSong((current) =>
+          current?.id === song.id ? { ...current, coverUrl } : current,
+        );
+      }
       // Shown for video until the first frame arrives.
       audio.poster = song.kind === "video" && coverUrl ? coverUrl : "";
       audio.src = audioUrl;
@@ -136,9 +159,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       }
       if (request !== loadRequestRef.current) return;
 
-      setMediaSession(song, coverUrl, coverFile?.data.type);
+      setMediaSession(song, coverUrl, source.coverType);
       setIsPlaying(true);
-      addToRecentlyPlayed(song.id, playListId);
+      if (!song.remote) addToRecentlyPlayed(song.id, playListId);
     },
     [addToRecentlyPlayed, revokeObjectUrls],
   );
@@ -191,11 +214,19 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const handlePlay = () => setIsPlaying(true);
     const handlePause = () => setIsPlaying(false);
 
+    // A streamed file that was removed fails here, after play() has started.
+    const handleError = () => {
+      if (!audio.error || audio.error.code === MediaError.MEDIA_ERR_ABORTED) return;
+      setIsPlaying(false);
+      toast.error("Unable to play. The file may be missing or not supported.");
+    };
+
     audio.addEventListener("timeupdate", handleTimeUpdate);
     audio.addEventListener("loadedmetadata", handleLoadedMetadata);
     audio.addEventListener("ended", handleEnded);
     audio.addEventListener("play", handlePlay);
     audio.addEventListener("pause", handlePause);
+    audio.addEventListener("error", handleError);
 
     return () => {
       audio.removeEventListener("timeupdate", handleTimeUpdate);
@@ -203,6 +234,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       audio.removeEventListener("ended", handleEnded);
       audio.removeEventListener("play", handlePlay);
       audio.removeEventListener("pause", handlePause);
+      audio.removeEventListener("error", handleError);
       audio.pause();
       cancelPendingLoad();
       revokeObjectUrls();

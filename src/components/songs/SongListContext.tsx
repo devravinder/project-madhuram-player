@@ -7,6 +7,7 @@ interface SongListContextType {
   showSearchBar?: boolean;
   playListId: string;
   refetch: VoidFunction;
+  remote?: boolean; // tracks from a public library: download instead of edit
 }
 
 const SongListContext = createContext<SongListContextType | undefined>(

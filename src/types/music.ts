@@ -14,6 +14,9 @@ export interface Song {
   sha256?: string; // set when the track is synced
   updatedAt?: Date;
   coverImageId?: string; // cover art, or a poster frame for video
+  // Set for a track that lives in a public library and is not saved here.
+  remote?: { owner: string; repo: string; manifest: string };
+  coverUrl?: string; // cover shown straight from its URL, for remote tracks
 }
 
 export interface Playlist {

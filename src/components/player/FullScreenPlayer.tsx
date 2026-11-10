@@ -62,7 +62,7 @@ export default function FullScreenPlayer({
           {song.kind === "video" ? (
             <VideoSurface className="w-full aspect-video rounded-t-3xl overflow-hidden" />
           ) : (
-            <AudioImage id={song.coverImageId} alt={song.title} className="w-full aspect-square rounded-t-3xl object-cover" />
+            <AudioImage id={song.coverImageId} src={song.coverUrl} alt={song.title} className="w-full aspect-square rounded-t-3xl object-cover" />
           )}
           <div className="pointer-events-none absolute inset-0 bg-linear-to-t from-slate-900/90 via-transparent to-transparent" />
           <button

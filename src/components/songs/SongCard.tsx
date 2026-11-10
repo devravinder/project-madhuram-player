@@ -3,6 +3,7 @@ import { formatTime } from "@/services/timeUtil";
 import type { Song } from "@/types/music";
 import { Pause, Play } from "lucide-react";
 import AudioImage from "../AudioImage";
+import RemoteSongActions from "../explore/RemoteSongActions";
 import { SongItem } from "../Elements";
 import Waves from "../Waves";
 import SongActions from "./SongActions";
@@ -34,7 +35,7 @@ export default function SongCard({ song, queue, index }: SongCardProps) {
       </span>
 
       <div className="w-12 h-12 relative">
-        <AudioImage id={song.coverImageId} alt={song.title} />
+        <AudioImage id={song.coverImageId} src={song.coverUrl} alt={song.title} />
         <div className="absolute border p-2 rounded-lg inset-0 flex justify-center items-center group-hover:hidden">
           {isCurrentSong && <Waves start={isPlaying} />}
         </div>
@@ -64,7 +65,11 @@ export default function SongCard({ song, queue, index }: SongCardProps) {
         {formatTime(song.duration)}
       </span>
       <div className="grop py-2 px-1 cursor-pointer text-muted-foreground rounded-lg justify-center items-center">
-        <SongActions isCurrent={isCurrentSong} id={song.id} />
+        {song.remote ? (
+          <RemoteSongActions song={song} />
+        ) : (
+          <SongActions isCurrent={isCurrentSong} id={song.id} />
+        )}
       </div>
     </SongItem>
   );

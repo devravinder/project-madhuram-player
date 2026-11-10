@@ -14,10 +14,12 @@ import { Route as LibraryRouteImport } from './routes/library'
 import { Route as ImportRouteImport } from './routes/import'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PlaylistsIndexRouteImport } from './routes/playlists/index'
+import { Route as ExploreIndexRouteImport } from './routes/explore/index'
 import { Route as PlaylistsRootRouteImport } from './routes/playlists/root'
 import { Route as PlaylistsCreateRouteImport } from './routes/playlists/create'
 import { Route as PlaylistsIdRouteImport } from './routes/playlists/$id'
 import { Route as PlaylistsEditIdRouteImport } from './routes/playlists/edit.$id'
+import { Route as ExploreOwnerRepoRouteImport } from './routes/explore/$owner.$repo'
 
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
@@ -44,6 +46,11 @@ const PlaylistsIndexRoute = PlaylistsIndexRouteImport.update({
   path: '/playlists/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ExploreIndexRoute = ExploreIndexRouteImport.update({
+  id: '/explore/',
+  path: '/explore/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PlaylistsRootRoute = PlaylistsRootRouteImport.update({
   id: '/playlists/root',
   path: '/playlists/root',
@@ -64,6 +71,11 @@ const PlaylistsEditIdRoute = PlaylistsEditIdRouteImport.update({
   path: '/playlists/edit/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ExploreOwnerRepoRoute = ExploreOwnerRepoRouteImport.update({
+  id: '/explore/$owner/$repo',
+  path: '/explore/$owner/$repo',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -73,7 +85,9 @@ export interface FileRoutesByFullPath {
   '/playlists/$id': typeof PlaylistsIdRoute
   '/playlists/create': typeof PlaylistsCreateRoute
   '/playlists/root': typeof PlaylistsRootRoute
+  '/explore': typeof ExploreIndexRoute
   '/playlists': typeof PlaylistsIndexRoute
+  '/explore/$owner/$repo': typeof ExploreOwnerRepoRoute
   '/playlists/edit/$id': typeof PlaylistsEditIdRoute
 }
 export interface FileRoutesByTo {
@@ -84,7 +98,9 @@ export interface FileRoutesByTo {
   '/playlists/$id': typeof PlaylistsIdRoute
   '/playlists/create': typeof PlaylistsCreateRoute
   '/playlists/root': typeof PlaylistsRootRoute
+  '/explore': typeof ExploreIndexRoute
   '/playlists': typeof PlaylistsIndexRoute
+  '/explore/$owner/$repo': typeof ExploreOwnerRepoRoute
   '/playlists/edit/$id': typeof PlaylistsEditIdRoute
 }
 export interface FileRoutesById {
@@ -96,7 +112,9 @@ export interface FileRoutesById {
   '/playlists/$id': typeof PlaylistsIdRoute
   '/playlists/create': typeof PlaylistsCreateRoute
   '/playlists/root': typeof PlaylistsRootRoute
+  '/explore/': typeof ExploreIndexRoute
   '/playlists/': typeof PlaylistsIndexRoute
+  '/explore/$owner/$repo': typeof ExploreOwnerRepoRoute
   '/playlists/edit/$id': typeof PlaylistsEditIdRoute
 }
 export interface FileRouteTypes {
@@ -109,7 +127,9 @@ export interface FileRouteTypes {
     | '/playlists/$id'
     | '/playlists/create'
     | '/playlists/root'
+    | '/explore'
     | '/playlists'
+    | '/explore/$owner/$repo'
     | '/playlists/edit/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -120,7 +140,9 @@ export interface FileRouteTypes {
     | '/playlists/$id'
     | '/playlists/create'
     | '/playlists/root'
+    | '/explore'
     | '/playlists'
+    | '/explore/$owner/$repo'
     | '/playlists/edit/$id'
   id:
     | '__root__'
@@ -131,7 +153,9 @@ export interface FileRouteTypes {
     | '/playlists/$id'
     | '/playlists/create'
     | '/playlists/root'
+    | '/explore/'
     | '/playlists/'
+    | '/explore/$owner/$repo'
     | '/playlists/edit/$id'
   fileRoutesById: FileRoutesById
 }
@@ -143,7 +167,9 @@ export interface RootRouteChildren {
   PlaylistsIdRoute: typeof PlaylistsIdRoute
   PlaylistsCreateRoute: typeof PlaylistsCreateRoute
   PlaylistsRootRoute: typeof PlaylistsRootRoute
+  ExploreIndexRoute: typeof ExploreIndexRoute
   PlaylistsIndexRoute: typeof PlaylistsIndexRoute
+  ExploreOwnerRepoRoute: typeof ExploreOwnerRepoRoute
   PlaylistsEditIdRoute: typeof PlaylistsEditIdRoute
 }
 
@@ -184,6 +210,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PlaylistsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/explore/': {
+      id: '/explore/'
+      path: '/explore'
+      fullPath: '/explore'
+      preLoaderRoute: typeof ExploreIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/playlists/root': {
       id: '/playlists/root'
       path: '/playlists/root'
@@ -212,6 +245,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PlaylistsEditIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/explore/$owner/$repo': {
+      id: '/explore/$owner/$repo'
+      path: '/explore/$owner/$repo'
+      fullPath: '/explore/$owner/$repo'
+      preLoaderRoute: typeof ExploreOwnerRepoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -223,7 +263,9 @@ const rootRouteChildren: RootRouteChildren = {
   PlaylistsIdRoute: PlaylistsIdRoute,
   PlaylistsCreateRoute: PlaylistsCreateRoute,
   PlaylistsRootRoute: PlaylistsRootRoute,
+  ExploreIndexRoute: ExploreIndexRoute,
   PlaylistsIndexRoute: PlaylistsIndexRoute,
+  ExploreOwnerRepoRoute: ExploreOwnerRepoRoute,
   PlaylistsEditIdRoute: PlaylistsEditIdRoute,
 }
 export const routeTree = rootRouteImport

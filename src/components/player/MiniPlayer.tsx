@@ -29,7 +29,7 @@ export default function MiniPlayer({ onClick }: { onClick?: VoidFunction }) {
           onClick={onClick}
           className="flex flex-row grow items-center gap-3 cursor-pointer"
         >
-          <AudioImage id={currentSong.coverImageId} alt={currentSong.title} className="h-12 w-12" />
+          <AudioImage id={currentSong.coverImageId} src={currentSong.coverUrl} alt={currentSong.title} className="h-12 w-12" />
           <div className="flex-1 min-w-0">
             <p className="font-medium text-sm line-clamp-1">
               {currentSong.title}
