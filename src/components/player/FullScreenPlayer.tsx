@@ -212,24 +212,21 @@ export default function FullScreenPlayer({ onClose }: { onClose: VoidFunction })
           isVideo ? "max-w-5xl" : "max-w-lg short:max-w-4xl"
         }`}
       >
-        <header className="shrink-0 h-12 px-2 flex items-center gap-1">
-          <PlayerButton label="Minimize player" onClick={onClose}>
-            <ChevronDown className="size-6" />
-          </PlayerButton>
-          <span className="flex-1 text-center text-xs uppercase tracking-wider text-white/60 truncate">
-            Now playing
-          </span>
-          {isVideo && video.canPictureInPicture && (
-            <PlayerButton label="Picture in picture" onClick={video.togglePictureInPicture}>
-              <PictureInPicture2 className="size-5" />
-            </PlayerButton>
-          )}
-          {isVideo && (
+        {/* Video keeps a slim bar for its own buttons; songs give the space to the cover. */}
+        {isVideo ? (
+          <header className="shrink-0 h-12 px-2 flex items-center justify-end gap-1">
+            {video.canPictureInPicture && (
+              <PlayerButton label="Picture in picture" onClick={video.togglePictureInPicture}>
+                <PictureInPicture2 className="size-5" />
+              </PlayerButton>
+            )}
             <PlayerButton label="Fullscreen" onClick={video.enterFullscreen}>
               <Maximize className="size-5" />
             </PlayerButton>
-          )}
-        </header>
+          </header>
+        ) : (
+          <div className="shrink-0 h-4" />
+        )}
 
         <div className="flex-1 min-h-0 flex flex-col short:flex-row gap-4 px-4 pb-4">
           <div className="flex-1 min-h-0 min-w-0">{media}</div>
@@ -238,9 +235,15 @@ export default function FullScreenPlayer({ onClose }: { onClose: VoidFunction })
             aria-label="Playback controls"
             className="shrink-0 flex flex-col gap-2 short:w-[45%] short:justify-center"
           >
-            <div className="min-w-0">
-              <p className="font-semibold truncate">{song.title}</p>
-              <p className="text-sm text-white/60 truncate">{song.artist}</p>
+            {/* Minimize sits by the thumb, at the right of the title. */}
+            <div className="flex items-center gap-2">
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold truncate">{song.title}</p>
+                <p className="text-sm text-white/60 truncate">{song.artist}</p>
+              </div>
+              <PlayerButton label="Minimize player" onClick={onClose} className="-mr-2">
+                <ChevronDown className="size-6" />
+              </PlayerButton>
             </div>
 
             <div className="flex items-center gap-2 text-xs text-white/60 tabular-nums">

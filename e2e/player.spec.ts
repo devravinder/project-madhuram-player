@@ -40,6 +40,12 @@ test("open player keeps its controls on screen at every size", async ({ page }) 
     const cover = (await player.getByRole("img", { name: "Tall Cover" }).boundingBox())!;
     expect(Math.abs(cover.width - cover.height)).toBeLessThan(2); // stays square
     expect(cover.y + cover.height).toBeLessThanOrEqual(size.height);
+
+    // Minimize is within thumb reach: right side, lower half on a phone.
+    const minimize = (await player.getByRole("button", { name: "Minimize player" }).boundingBox())!;
+    expect(minimize.x).toBeGreaterThan(size.width / 2);
+    if (size.height > size.width) expect(minimize.y).toBeGreaterThan(size.height / 2);
+    await page.screenshot({ path: `test-results/player-${size.width}x${size.height}.png` });
   }
 
   // Secondary controls wait behind "More options".
