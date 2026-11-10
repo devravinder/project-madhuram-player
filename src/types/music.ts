@@ -80,6 +80,9 @@ export type OutboxItem = {
 export type SyncRecord = {
   trackId: string;
   sha256: string;
+  // Removed from this device on purpose but kept on GitHub; a download
+  // sync brings it back, other syncs leave it alone.
+  deviceRemoved?: boolean;
 };
 
 export type PlaylistTombstone = {

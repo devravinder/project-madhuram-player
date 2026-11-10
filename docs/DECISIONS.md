@@ -54,3 +54,18 @@ stays; the skill's React Router default does not apply.
 
 Sign-in and sync move to the provider layer. The `server` folder, Firebase SDK and
 `redaxios` are deleted.
+
+## ADR-010: Deleting a backed-up song asks where
+
+When signed in, deleting a song that is on GitHub offers "Delete everywhere" or
+"Remove from this device only".
+
+- Delete everywhere removes it here, then right away on GitHub: the index entry
+  becomes a tombstone (so other devices remove it), and the manifest and every
+  part under `data/<id[0:2]>/<id>/` are removed from the primary and shard repos,
+  freeing their space. If GitHub cannot be reached, the next full sync finishes it.
+- Remove from this device only marks the sync record `deviceRemoved`. Sync and
+  Upload leave the track alone; Download brings it back, and it stays in its
+  playlists meanwhile.
+- When signed out, a backed-up song is only removed from the device, so signing
+  in later never deletes it from GitHub by surprise.

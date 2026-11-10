@@ -79,6 +79,7 @@ export default function SyncSettings() {
     cancel,
     retryFailed,
     resumeAt,
+    keptOnGithub,
   } = useSync();
 
   if (status !== "signed-in") return null;
@@ -136,6 +137,14 @@ export default function SyncSettings() {
           </Button.Secondary>
         )}
       </div>
+
+      {keptOnGithub > 0 && (
+        <p className="text-sm text-muted-foreground">
+          {keptOnGithub === 1 ? "1 song is" : `${keptOnGithub} songs are`} kept on
+          GitHub only. Download brings {keptOnGithub === 1 ? "it" : "them"} back to
+          this device.
+        </p>
+      )}
 
       <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
         {statusText}

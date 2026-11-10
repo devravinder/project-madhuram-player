@@ -29,7 +29,12 @@ export const deleteSongs = async () => {
   await db.songs.clear();
 };
 
-export const deleteSong = async (id: string) => {
+// keepInPlaylists: for a song removed only from this device, so it is
+// back in its playlists when it is downloaded again.
+export const deleteSong = async (
+  id: string,
+  { keepInPlaylists = false }: { keepInPlaylists?: boolean } = {},
+) => {
   const song = await getSong(id);
   if (!song) return;
 
@@ -38,6 +43,7 @@ export const deleteSong = async (id: string) => {
   if (song.coverImageId) await deleteFile(song.coverImageId);
 
   await db[COLLECTIONS.SONGS_COLLECTION].delete(id);
+  if (keepInPlaylists) return;
 
   const playlists = await getPlaylists();
 

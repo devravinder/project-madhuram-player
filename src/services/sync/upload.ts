@@ -108,12 +108,13 @@ async function planWithRollover(
 }
 
 // Shard repos get their own commit; the primary repo's parts ride with the index.
-async function commitShardParts(
+// A null sha removes the path.
+export async function commitShardParts(
   api: GithubApi,
   owner: string,
   repo: string,
   message: string,
-  parts: { path: string; sha: string }[],
+  parts: { path: string; sha: string | null }[],
 ) {
   const info = await api.getRepo(owner, repo);
   if (!info) throw new Error(`Repository ${repo} is missing.`);

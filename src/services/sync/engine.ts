@@ -15,6 +15,7 @@ import {
   type RunResult,
 } from "./outbox";
 import { planSync } from "./planner";
+import { removeRemoteTrack } from "./remove";
 import { uploadTrack, type UploadOptions } from "./upload";
 
 // Upload only sends new and changed tracks; download only brings them in.
@@ -39,7 +40,9 @@ export async function queueSync(
     ctx.device.listTracks(),
     db.syncState.toArray(),
   ]);
-  const steps = planSync(local, index.tracks, records);
+  const steps = planSync(local, index.tracks, records, {
+    restoreDeviceRemoved: mode === "download",
+  });
   return outbox.enqueue(steps.filter((step) => allows(mode, step.op)));
 }
 
@@ -78,21 +81,7 @@ async function pull(ctx: SyncContext, trackId: string) {
 }
 
 async function deleteRemote(ctx: SyncContext, trackId: string) {
-  await ctx.library.update((index) => {
-    const entry = index.tracks.find((t) => t.id === trackId);
-    if (!entry || entry.deleted) return { message: "No change", index };
-    return {
-      message: `Remove ${entry.title}`,
-      index: {
-        ...index,
-        tracks: index.tracks.map((t) =>
-          t.id === trackId
-            ? { ...t, deleted: true, updatedAt: new Date().toISOString() }
-            : t,
-        ),
-      },
-    };
-  });
+  await removeRemoteTrack(ctx.library, trackId);
   await db.syncState.delete(trackId);
 }
 

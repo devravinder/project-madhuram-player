@@ -11,7 +11,12 @@ export type Repo = {
   size?: number; // KiB, as GitHub reports it (can lag behind)
 };
 export type Head = { branch: string; commitSha: string; treeSha: string };
-export type TreeEntry = { path: string; type: "blob" | "tree"; sha: string };
+export type TreeEntry = {
+  path: string;
+  type: "blob" | "tree";
+  sha: string;
+  size?: number; // bytes, for blobs
+};
 // A null sha removes the path.
 export type TreeChange = { path: string; sha: string | null };
 export type RepoFile = { sha: string; text: string };
@@ -167,17 +172,41 @@ export class GithubApi {
     path: string,
   ): Promise<RepoFile | null> {
     const parts = path.split("/");
-    let sha = treeSha;
-    for (const [i, part] of parts.entries()) {
-      const type = i === parts.length - 1 ? "blob" : "tree";
-      const entry = (await this.getTree(owner, repo, sha)).find(
-        (e) => e.path === part && e.type === type,
-      );
-      if (!entry) return null;
-      sha = entry.sha;
+    const folder = await this.findFolder(owner, repo, treeSha, parts.slice(0, -1));
+    const entry = folder?.find(
+      (e) => e.path === parts[parts.length - 1] && e.type === "blob",
+    );
+    if (!entry) return null;
+    const blob = await this.readBlob(owner, repo, entry.sha);
+    return { sha: entry.sha, text: await blob.text() };
+  }
+
+  // Files directly inside a folder of a known tree, with full paths.
+  async listFolderFiles(
+    owner: string,
+    repo: string,
+    treeSha: string,
+    folder: string,
+  ): Promise<TreeEntry[]> {
+    const entries = await this.findFolder(owner, repo, treeSha, folder.split("/"));
+    return (entries ?? [])
+      .filter((e) => e.type === "blob")
+      .map((e) => ({ ...e, path: `${folder}/${e.path}` }));
+  }
+
+  private async findFolder(
+    owner: string,
+    repo: string,
+    treeSha: string,
+    names: string[],
+  ): Promise<TreeEntry[] | null> {
+    let entries = await this.getTree(owner, repo, treeSha);
+    for (const name of names) {
+      const next = entries.find((e) => e.path === name && e.type === "tree");
+      if (!next) return null;
+      entries = await this.getTree(owner, repo, next.sha);
     }
-    const blob = await this.readBlob(owner, repo, sha);
-    return { sha, text: await blob.text() };
+    return entries;
   }
 
   async getHead(

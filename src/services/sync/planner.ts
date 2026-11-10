@@ -4,14 +4,23 @@ import type { OutboxOp, SyncRecord } from "@/types/music";
 
 export type SyncStep = { op: OutboxOp; trackId: string };
 
+export type PlanOptions = {
+  // Bring back tracks that were removed from this device only.
+  restoreDeviceRemoved?: boolean;
+};
+
 // Decides what to push, pull or delete. The record of the last successful
 // sync tells "deleted on one side" apart from "new on the other side".
 export function planSync(
   local: TrackMeta[],
   remote: TrackEntry[],
   records: SyncRecord[],
+  options: PlanOptions = {},
 ): SyncStep[] {
   const synced = new Map(records.map((record) => [record.trackId, record.sha256]));
+  const deviceRemoved = new Set(
+    records.filter((record) => record.deviceRemoved).map((r) => r.trackId),
+  );
   const remoteById = new Map(remote.map((entry) => [entry.id, entry]));
   const localIds = new Set(local.map((track) => track.id));
   const steps: SyncStep[] = [];
@@ -46,6 +55,11 @@ export function planSync(
 
   for (const entry of remote) {
     if (entry.deleted || localIds.has(entry.id)) continue;
+    if (deviceRemoved.has(entry.id)) {
+      // Kept on GitHub only: just a download sync brings it back.
+      if (options.restoreDeviceRemoved) steps.push({ op: "pull", trackId: entry.id });
+      continue;
+    }
     // Synced before but missing here: it was deleted on this device.
     steps.push({
       op: synced.has(entry.id) ? "delete-remote" : "pull",

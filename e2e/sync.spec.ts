@@ -76,3 +76,48 @@ test("removing the token keeps the music and hides the backup", async ({ page })
   await page.goto("/#/library");
   await expect(page.getByText("1 songs")).toBeVisible();
 });
+
+const remotePaths = (page: import("@playwright/test").Page) =>
+  page.evaluate((repo) => (window as any).__fake.paths(repo) as string[], REPO);
+
+const openDelete = async (page: import("@playwright/test").Page, title: string) => {
+  const { songRow } = await import("./fixtures");
+  await songRow(page, title).locator('[aria-haspopup="menu"]').click();
+  await page.getByRole("menuitem", { name: "Delete" }).click();
+  return page.getByRole("dialog", { name: `Delete “${title}”?` });
+};
+
+test("deletes a backed-up song from GitHub, or from this device only", async ({ page }) => {
+  await signInWithFake(page);
+  await importFiles(page, [
+    { name: "Gone.wav", buffer: wavBuffer(2) },
+    { name: "Kept.wav", buffer: wavBuffer(2, 5) },
+  ]);
+  await page.goto("/#/settings");
+  await page.getByRole("button", { name: "Sync", exact: true }).click();
+  await expect(page.getByText("Synced 2 items.")).toBeVisible({ timeout: 20_000 });
+  const before = (await remotePaths(page)).length;
+
+  // Delete everywhere: the files leave GitHub straight away.
+  await page.goto("/#/library");
+  const dialog = await openDelete(page, "Gone");
+  await dialog.getByRole("button", { name: /Delete everywhere/ }).click();
+  await expect(page.getByText("Deleted everywhere")).toBeVisible({ timeout: 15_000 });
+  expect(await remoteTitles(page)).toEqual(["Kept"]);
+  expect((await remotePaths(page)).length).toBe(before - 2); // manifest + one part
+
+  // This device only: GitHub keeps it, a Download sync brings it back.
+  await (await openDelete(page, "Kept")).getByRole("button", { name: /this device only/ }).click();
+  await expect(page.getByText("Removed from this device. It is still on GitHub.")).toBeVisible();
+  expect(await remoteTitles(page)).toEqual(["Kept"]);
+
+  await page.goto("/#/settings");
+  await expect(page.getByText("1 song is kept on GitHub only.", { exact: false })).toBeVisible();
+  await page.getByRole("button", { name: "Sync", exact: true }).click();
+  await expect(page.getByText("Everything is up to date.")).toBeVisible({ timeout: 15_000 });
+  await page.getByRole("button", { name: "Download" }).click();
+  await expect(page.getByText("Synced 1 item.")).toBeVisible({ timeout: 20_000 });
+  await page.goto("/#/library");
+  await expect(page.getByText("1 songs")).toBeVisible();
+  await expect(page.getByText("Kept", { exact: true })).toBeVisible();
+});

@@ -16,6 +16,10 @@ import {
 import { deviceProvider } from "@/services/storage/deviceProvider";
 import { syncNow, type SyncMode } from "@/services/sync/engine";
 import {
+  deleteEverywhere as deleteTrackEverywhere,
+  type DeleteResult,
+} from "@/services/sync/deleteTrack";
+import {
   outbox,
   stopReasonOf,
   type RunResult,
@@ -66,6 +70,9 @@ type SyncContextValue = {
   cancel: () => void;
   retryFailed: () => Promise<void>;
   changeRepoName: (name: string) => boolean;
+  signedIn: boolean;
+  keptOnGithub: number; // songs removed from this device only
+  deleteEverywhere: (trackId: string) => Promise<DeleteResult>;
 };
 
 const SyncContext = createContext<SyncContextValue | undefined>(undefined);
@@ -125,6 +132,11 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const sources = useLiveQuery(() => db.followedSources.toArray(), []);
   const waiting = items.filter((item) => item.status !== "failed").length;
   const failedItems = items.filter((item) => item.status === "failed");
+  const keptOnGithub = useLiveQuery(
+    () => db.syncState.filter((record) => !!record.deviceRemoved).count(),
+    [],
+    0,
+  );
 
   const report = useCallback((problem: unknown) => {
     if (problem instanceof LibraryNameTakenError) setNameTaken(problem.repo);
@@ -227,6 +239,16 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     return true;
   }, []);
 
+  // Deletes on this device, then on GitHub; offline or failed deletes
+  // are finished by the next full sync.
+  const deleteEverywhere = useCallback(
+    async (trackId: string) => {
+      const library = signedIn ? await getLibrary().catch(() => undefined) : undefined;
+      return deleteTrackEverywhere(trackId, library);
+    },
+    [signedIn, getLibrary],
+  );
+
   // Playlists and followed libraries follow the user without asking,
   // a moment after each change.
   useEffect(() => {
@@ -278,6 +300,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         cancel,
         retryFailed,
         changeRepoName,
+        signedIn,
+        keptOnGithub,
+        deleteEverywhere,
       }}
     >
       {children}

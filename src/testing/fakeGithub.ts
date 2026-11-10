@@ -274,24 +274,24 @@ export class FakeGithub {
   private rootTree(repo: FakeRepo, ref: string) {
     // A branch name, a tree id, or a folder id handed out by an earlier listing.
     const folder = this.folders.get(ref);
-    if (folder) return this.listing(folder.snapshot, folder.prefix, ref);
+    if (folder) return this.listing(repo, folder.snapshot, folder.prefix, ref);
     const tree = repo.trees.get(ref);
-    if (tree) return this.listing(tree, "", ref);
+    if (tree) return this.listing(repo, tree, "", ref);
 
     const commitId = repo.branches.get(ref);
     if (!repo.branches.size) return failure(409, "Git Repository is empty.");
     if (!commitId) return failure(404, "Not Found");
     const treeSha = repo.commits.get(commitId)!.tree;
-    return this.listing(repo.trees.get(treeSha)!, "", treeSha);
+    return this.listing(repo, repo.trees.get(treeSha)!, "", treeSha);
   }
 
-  private async listing(snapshot: Snapshot, prefix: string, sha: string) {
-    const entries = new Map<string, { path: string; type: string; sha: string }>();
+  private async listing(repo: FakeRepo, snapshot: Snapshot, prefix: string, sha: string) {
+    const entries = new Map<string, { path: string; type: string; sha: string; size?: number }>();
     for (const [path, blob] of Object.entries(snapshot)) {
       if (!path.startsWith(prefix)) continue;
       const [first, ...tail] = path.slice(prefix.length).split("/");
       if (!tail.length) {
-        entries.set(first, { path: first, type: "blob", sha: blob });
+        entries.set(first, { path: first, type: "blob", sha: blob, size: repo.blobs.get(blob)?.length });
       } else if (!entries.has(first)) {
         const inner = `${prefix}${first}/`;
         const id = await sha1Hex(`folder ${JSON.stringify(Object.entries(snapshot).sort())} ${inner}`);

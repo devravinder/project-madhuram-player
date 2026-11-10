@@ -1,12 +1,15 @@
 import { FAVOURITE_PLAYLIST_ID, RECENT_PLAYLIST_ID } from "@/constants";
 import { usePlaylists } from "@/context/PlaylistContext";
+import { useSync } from "@/context/SyncContext";
 import { getPlaylists, updatePlaylist } from "@/services/playlistService";
-import { deleteSong } from "@/services/songsService";
+import { deleteSong, getSong } from "@/services/songsService";
+import { isBackedUp, removeFromDeviceOnly } from "@/services/sync/deleteTrack";
 import type { Playlist } from "@/types/music";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Check, ListMusic, ListPlus, MoreVertical, Trash } from "lucide-react";
 import { useEffect, useState, type MouseEventHandler } from "react";
 import { toast } from "sonner";
+import DeleteSongDialog, { type DeleteChoice } from "./DeleteSongDialog";
 import { useSongsList } from "./SongListContext";
 
 const SongActions = ({
@@ -18,6 +21,14 @@ const SongActions = ({
 }) => {
   const { refetch } = useSongsList();
   const { setFavourites } = usePlaylists();
+  const { signedIn, deleteEverywhere } = useSync();
+  const [asking, setAsking] = useState<string>(); // title of the song asked about
+
+  const afterDelete = (fromPlaylists: boolean) => {
+    if (fromPlaylists) setFavourites((pre) => pre.filter((i) => i !== id));
+    refetch();
+  };
+
   const handleDelete: MouseEventHandler<HTMLDivElement> = async (e) => {
     e.stopPropagation();
 
@@ -26,16 +37,62 @@ const SongActions = ({
       return;
     }
 
+    const backedUp = await isBackedUp(id);
+
+    if (backedUp && signedIn) {
+      setAsking((await getSong(id))?.title ?? "this song");
+      return;
+    }
+
+    if (backedUp) {
+      // Signed out: the GitHub copy is kept, so signing in later does not delete it.
+      const yes = window.confirm(
+        "Remove this song from this device? Its copy on GitHub is kept; a Download sync brings it back.",
+      );
+      if (!yes) return;
+      await removeFromDeviceOnly(id);
+      afterDelete(false);
+      return;
+    }
+
     const yes = window.confirm("Really want to delete");
 
     if (yes) {
       await deleteSong(id);
-      setFavourites((pre) => pre.filter((i) => i !== id));
-      refetch();
+      afterDelete(true);
     }
   };
 
+  const choose = async (choice: DeleteChoice) => {
+    setAsking(undefined);
+    if (choice === "device") {
+      await removeFromDeviceOnly(id);
+      afterDelete(false);
+      toast.success("Removed from this device. It is still on GitHub.");
+      return;
+    }
+    const pending = deleteEverywhere(id);
+    toast.promise(pending, {
+      loading: "Deleting from GitHub…",
+      success: (result) =>
+        result === "deleted"
+          ? "Deleted everywhere"
+          : "Deleted here. GitHub will be updated on the next sync.",
+      error: "Could not delete the song",
+    });
+    await pending.catch(() => undefined);
+    afterDelete(true);
+  };
+
   return (
+    <>
+    {asking !== undefined && (
+      <DeleteSongDialog
+        title={asking}
+        onChoose={choose}
+        onClose={() => setAsking(undefined)}
+      />
+    )}
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
         <MoreVertical />
@@ -47,7 +104,6 @@ const SongActions = ({
           sideOffset={5}
         >
           <DropdownMenu.Item
-            role="button"
             onClick={handleDelete}
             className="outline-none text-muted-foreground flex flex-row items-center gap-2 px-4 py-2 rounded-md hover:bg-secondary/50 cursor-pointer transition-all duration-200 "
           >
@@ -62,6 +118,7 @@ const SongActions = ({
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
     </DropdownMenu.Root>
+    </>
   );
 };
 

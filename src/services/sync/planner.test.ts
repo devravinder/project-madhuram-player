@@ -43,6 +43,18 @@ describe("planSync", () => {
     ]);
   });
 
+  it("leaves a track removed from this device only alone", () => {
+    const kept = { ...record("a", "h"), deviceRemoved: true };
+    expect(planSync([], [remote("a", "h")], [kept])).toEqual([]);
+  });
+
+  it("brings back a track removed from this device only when asked", () => {
+    const kept = { ...record("a", "h"), deviceRemoved: true };
+    expect(planSync([], [remote("a", "h")], [kept], { restoreDeviceRemoved: true })).toEqual([
+      { op: "pull", trackId: "a" },
+    ]);
+  });
+
   it("deletes locally what was deleted elsewhere after a sync", () => {
     expect(planSync([local("a", "h")], [remote("a", "h", { deleted: true })], [record("a", "h")])).toEqual([
       { op: "delete-local", trackId: "a" },

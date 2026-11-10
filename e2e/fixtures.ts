@@ -16,9 +16,13 @@ export const test = base.extend({
   page: async ({ page }, use) => {
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
-    await page.addLocatorHandler(page.getByRole("button", { name: "Close" }), (close) =>
-      close.click(),
-    );
+    // Only the PWA notice; a dispatched click still lands while an open
+    // menu blocks pointer events outside itself.
+    const notice = page
+      .getByRole("alert")
+      .filter({ hasText: /ready to work offline|New content available/ })
+      .getByRole("button", { name: "Close" });
+    await page.addLocatorHandler(notice, (close) => close.dispatchEvent("click"));
     await use(page);
     expect(errors, "uncaught page errors").toEqual([]);
   },
