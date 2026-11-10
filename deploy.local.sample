@@ -1,0 +1,2 @@
+# Copy to deploy.local (git-ignored) and set your domain.
+DEPLOY_CNAME=<deploy-domain>

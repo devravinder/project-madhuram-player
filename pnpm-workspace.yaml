@@ -1,0 +1,8 @@
+allowBuilds:
+  esbuild: true
+  sharp: true
+
+overrides:
+  vite: npm:rolldown-vite@7.2.5
+  sharp: 0.33.5
+  sharp-ico: 0.1.5
