@@ -121,7 +121,9 @@ export class FakeGithub {
     const url = new URL(typeof input === "string" ? input : String(input));
     const method = init?.method ?? "GET";
     const headers = new Headers(init?.headers);
-    this.requests.push(`${method} ${url.pathname}`);
+    this.requests.push(`${method} ${url.host === "raw.githubusercontent.com" ? "raw:" : ""}${url.pathname}`);
+
+    if (url.host === "raw.githubusercontent.com") return this.raw(url);
 
     if (headers.get("authorization") !== `Bearer ${this.token}`) {
       return failure(401, "Bad credentials");
@@ -208,6 +210,21 @@ export class FakeGithub {
   }
 
   // ---- handlers -------------------------------------------------------
+
+  // raw.githubusercontent.com: no sign-in, public repos only.
+  private raw(url: URL) {
+    const [, owner, name, ref, ...rest] = url.pathname.split("/");
+    const repo = this.repos.get(name);
+    if (owner !== this.login || !repo || repo.private || ref !== "HEAD") {
+      return new Response("404: Not Found", { status: 404 });
+    }
+    const sha = this.headSnapshot(repo)[rest.map(decodeURIComponent).join("/")];
+    const bytes = sha ? repo.blobs.get(sha) : undefined;
+    return bytes
+      ? new Response(bytes as BodyInit, { status: 200, headers: { "access-control-allow-origin": "*" } })
+      : new Response("404: Not Found", { status: 404 });
+  }
+
 
   private listRepos(url: URL) {
     const page = Number(url.searchParams.get("page") ?? 1);
