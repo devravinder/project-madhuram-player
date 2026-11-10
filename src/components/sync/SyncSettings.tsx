@@ -1,12 +1,13 @@
 import { Button, Input } from "@/components/Elements";
 import { useSync, type LastRun } from "@/context/SyncContext";
 import { useAuth } from "@/hooks/useAuth";
+import { authStore } from "@/services/github/authStore";
 import { CloudDownload, CloudUpload, RefreshCcw, Square } from "lucide-react";
 import { useState, type FormEvent } from "react";
 
 const STOP_TEXT = {
   offline: "You are offline. Waiting items will sync when you reconnect.",
-  "rate-limit": "GitHub asked us to slow down. Try again in a minute.",
+  "rate-limit": "GitHub asked us to slow down.",
   auth: "GitHub rejected the token. Remove it and sign in again.",
   cancelled: "Stopped. Waiting items stay queued.",
 } as const;
@@ -77,6 +78,7 @@ export default function SyncSettings() {
     sync,
     cancel,
     retryFailed,
+    resumeAt,
   } = useSync();
 
   if (status !== "signed-in") return null;
@@ -137,7 +139,22 @@ export default function SyncSettings() {
 
       <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
         {statusText}
+        {!busy && resumeAt && (
+          <> Continues by itself at {new Date(resumeAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}.</>
+        )}
       </p>
+
+      {!busy && last?.stoppedBy === "auth" && (
+        <Button.Secondary
+          onClick={() => {
+            authStore.removeToken();
+            authStore.requestLogin();
+          }}
+          className="self-start text-base"
+        >
+          Sign in again
+        </Button.Secondary>
+      )}
 
       {error && (
         <p role="alert" className="text-sm text-destructive">

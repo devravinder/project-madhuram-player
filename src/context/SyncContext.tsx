@@ -32,6 +32,8 @@ import {
 
 // Playlist edits are bundled together before they are sent.
 const PLAYLIST_SYNC_DELAY_MS = 3000;
+// A long wait is better left to the next manual sync or reconnect.
+const MAX_AUTO_RESUME_MS = 15 * 60 * 1000;
 
 export type SyncPhase = "idle" | "connecting" | "syncing";
 
@@ -47,6 +49,7 @@ export type RepoUsage = { repos: RepoInfo[]; maxRepoBytes: number };
 
 type SyncContextValue = {
   usage?: RepoUsage;
+  resumeAt?: number; // when a paused sync carries on by itself
   phase: SyncPhase;
   error?: string;
   nameTaken?: string;
@@ -81,6 +84,15 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const [last, setLast] = useState<LastRun>();
   const [repoName, setRepoName] = useState(getLibraryRepoName);
   const [usage, setUsage] = useState<RepoUsage>();
+  const [resumeAt, setResumeAt] = useState<number>();
+  const resumeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const syncRef = useRef<(mode?: SyncMode) => Promise<void>>(undefined);
+
+  const clearResume = useCallback(() => {
+    clearTimeout(resumeTimer.current);
+    resumeTimer.current = undefined;
+    setResumeAt(undefined);
+  }, []);
 
   const running = useRef(false);
   const cancelled = useRef(false);
@@ -118,6 +130,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const sync = useCallback(
     async (mode: SyncMode = "both") => {
       if (!signedIn || running.current) return;
+      clearResume();
       running.current = true;
       cancelled.current = false;
       setError(undefined);
@@ -136,8 +149,12 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           await syncPlaylists(library);
           await syncSources(library);
         }
-        const { index } = await library.read();
-        setUsage({ repos: index.repos, maxRepoBytes: index.config.maxRepoBytes });
+        const { index } = result.stoppedBy
+          ? { index: undefined }
+          : await library.read();
+        if (index) {
+          setUsage({ repos: index.repos, maxRepoBytes: index.config.maxRepoBytes });
+        }
         setLast({
           at: Date.now(),
           queued: result.queued,
@@ -145,19 +162,43 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           failed: result.failed,
           stoppedBy: result.stoppedBy,
         });
+
+        // Rate limits and retry backoff end on their own; carry on then.
+        const autoResume =
+          result.waitMs !== undefined &&
+          result.waitMs > 0 &&
+          result.waitMs <= MAX_AUTO_RESUME_MS &&
+          result.stoppedBy !== "cancelled" &&
+          result.stoppedBy !== "auth";
+        if (autoResume) {
+          setResumeAt(Date.now() + result.waitMs!);
+          resumeTimer.current = setTimeout(
+            () => void syncRef.current?.(mode),
+            result.waitMs! + 250,
+          );
+        }
       } catch (problem) {
         report(problem);
+        // A rejected token can surface outside the queue too, e.g. on connect.
+        if (problem instanceof HttpError && problem.status === 401) {
+          setLast({ at: Date.now(), queued: 0, done: 0, failed: 0, stoppedBy: "auth" });
+        }
       } finally {
         running.current = false;
         setPhase("idle");
       }
     },
-    [signedIn, getLibrary, report],
+    [signedIn, getLibrary, report, clearResume],
   );
+
+  useEffect(() => {
+    syncRef.current = sync;
+  }, [sync]);
 
   const cancel = useCallback(() => {
     cancelled.current = true;
-  }, []);
+    clearResume();
+  }, [clearResume]);
 
   const retryFailed = useCallback(async () => {
     await outbox.retryFailed();
@@ -192,8 +233,12 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
   // Removing the token stops a sync in progress; queued steps stay for later.
   useEffect(() => {
-    if (!signedIn) cancelled.current = true;
+    if (signedIn) return;
+    cancelled.current = true;
+    clearTimeout(resumeTimer.current);
   }, [signedIn]);
+
+  useEffect(() => () => clearTimeout(resumeTimer.current), []);
 
   // Waiting steps carry on once the connection is back.
   useEffect(() => {
@@ -207,6 +252,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     <SyncContext.Provider
       value={{
         usage,
+        resumeAt,
         phase,
         error,
         nameTaken,

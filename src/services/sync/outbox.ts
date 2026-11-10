@@ -112,6 +112,10 @@ export const outbox = {
         const stop = await this.handleFailure(due, error, now());
         if (stop) {
           result.stoppedBy = stop;
+          if (stop === "rate-limit") {
+            const held = await db.outbox.get(due.id);
+            if (held) result.waitMs = Math.max(0, held.nextAttemptAt - now());
+          }
           return result;
         }
         if ((await db.outbox.get(due.id))?.status === "failed") result.failed++;

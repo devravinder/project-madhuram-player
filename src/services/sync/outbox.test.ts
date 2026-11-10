@@ -104,6 +104,7 @@ describe("outbox", () => {
 
     const first = await run(limited);
     expect(first.stoppedBy).toBe("rate-limit");
+    expect(first.waitMs).toBe(30_000);
     expect(seen).toEqual(["a"]);
     expect((await outbox.list())[0].attempts).toBe(0); // not the step's fault
 
