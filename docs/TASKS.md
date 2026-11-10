@@ -40,8 +40,8 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 
 - [x] `StorageProvider` interface and device provider
 - [x] Token setup screen and validation (login first, with "Try without login")
-- [~] Remove token action: clears the token and keeps local data, with a link to revoke on GitHub (outbox stop comes with the outbox)
-- [~] Find an existing library repo: reuse if marked, adopt if empty, create if missing, never touch other repos (logic and tests done; the "pick another name" prompt arrives with the Sync screen)
+- [x] Remove token action: clears the token, stops a running sync, keeps local data and queued steps, links to revoke on GitHub
+- [x] Find an existing library repo: reuse if marked, adopt if empty, create if missing, never touch other repos, ask for another name
 - [x] Recover missing shard repos by marker
 - [x] Create repos, read and write `index.json` with conflict retry
 - [x] Add `sha256` and `parts` to tracks when syncing (hash, parts and manifest are written at upload)
@@ -49,7 +49,7 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 - [x] Persisted outbox with resume (retry with backoff, rate-limit hold, offline stop)
 - [x] Repo rollover at the size limit (a large file can span repos; leftover space is reused)
 - [x] Playlists sync and tombstones (newest edit wins, deletes kept as tombstones, Recently Played stays on the device)
-- [~] Sync screen: push local, pull remote (planner, executors and deletes done and tested; the screen itself is next)
+- [x] Sync screen: sync, upload only, download only, with status, stop and retry
 
 ## Phase 5 — Public libraries
 

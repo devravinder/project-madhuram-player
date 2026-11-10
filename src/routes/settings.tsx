@@ -10,6 +10,7 @@ import {
 import { BugPlay, KeyRound, LogIn, RefreshCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
+import SyncSettings from "@/components/sync/SyncSettings";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useDevTools } from "@/context/DevToolContext";
 import { useAuth } from "@/hooks/useAuth";
@@ -73,6 +74,7 @@ function RouteComponent() {
                   </IconButton>
                 )}
               </div>
+              <SyncSettings />
               {showDevTools && (
                 <div className={rowClass}>
                   <span>Dev Tools</span>

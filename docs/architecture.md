@@ -156,7 +156,9 @@ Settings has a "Remove token" action that works at any time, signed in or not.
 
 Each track has a stable id and a SHA-256. Its state is local-only, remote-only or synced.
 Deletes are tombstones in the index so other devices remove the track too. Playlists sync
-automatically when signed in, with a manual sync override.
+automatically a few seconds after each change when signed in. In Settings, Sync works both
+ways, while Upload only sends new and changed tracks and Download only brings them in. Steps
+wait in a saved queue, so a lost connection, a rate limit or a reload only pauses them.
 
 ## Offline
 
