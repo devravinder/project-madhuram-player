@@ -1,15 +1,34 @@
 # Madhuram Player
 
-Only music, no ads. An offline-first music and video player that runs in the browser.
-It works with no sign-in, and can back up to your own GitHub repositories.
+Only music, no ads. A music and video player that runs in your browser and can be
+installed like an app. It works offline, with no account and no server.
 
+## How it works
+
+- Your songs and videos are saved inside the browser on your device, so they play offline.
+- For backup, the app uses your own GitHub account as storage: it keeps your songs in
+  private repositories that only you can see. Nothing goes to anyone else.
+- Anyone can share music by putting it in a public repository; others can play it by name.
+
+## How to use
+
+1. Without sign-in: tap "Try without login", then Import songs or videos. They stay on this
+   device and play offline. Explore lets you play public libraries by `owner/repo`.
+2. With sign-in: paste a GitHub token with repo access. In Settings, GitHub backup:
+   - Sync sends new songs to your private `project-music-files` repo and brings in songs
+     from your other devices. Upload only sends; Download only brings in.
+   - Big files are split into parts; a full repo continues in `project-music-files-1`, `-2`.
+   - Playlists and followed libraries sync by themselves. Removing the token keeps your music.
+
+## For developers
+
+- [How to run](docs/HOW-TO-RUN.md)
 - [Product requirements](docs/PRD.md)
 - [Architecture](docs/architecture.md)
 - [Decisions](docs/DECISIONS.md)
 - [Tasks](docs/TASKS.md)
-- [How to run](docs/HOW-TO-RUN.md)
 
-## Notes for custom domains
+Notes for hosting on a custom domain:
 
 - In PWA options `navigateFallback: null` is important.
 - `basepath="/"` is important in the router (`RouterProvider`), so GitHub Pages
