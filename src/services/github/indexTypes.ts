@@ -98,3 +98,32 @@ export function parseIndex(text: string): LibraryIndex {
 
 export const serializeIndex = (index: LibraryIndex) =>
   `${JSON.stringify(index, null, 2)}\n`;
+
+// A playlist as stored in playlists.json; a deleted one stays as a tombstone.
+export type PlaylistEntry = {
+  id: string;
+  name: string;
+  description?: string;
+  coverUrl?: string;
+  songIds: string[];
+  createdAt: string;
+  updatedAt: string;
+  deleted?: boolean;
+};
+
+export type PlaylistsFile = {
+  schemaVersion: number;
+  playlists: PlaylistEntry[];
+};
+
+export function parsePlaylists(text: string | undefined): PlaylistEntry[] {
+  if (!text) return [];
+  try {
+    return (JSON.parse(text) as PlaylistsFile).playlists ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export const serializePlaylists = (playlists: PlaylistEntry[]) =>
+  `${JSON.stringify({ schemaVersion: SCHEMA_VERSION, playlists } satisfies PlaylistsFile, null, 2)}\n`;

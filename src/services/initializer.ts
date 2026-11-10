@@ -8,13 +8,14 @@ export const createSampleSongs = async () => {
   // await db.songs.bulkAdd(staticSongs);
 };
 
+// Starts at the epoch, so an untouched default never beats a real playlist in sync.
 const recentPlaylistDefault: Playlist = {
   id: RECENT_PLAYLIST_ID,
   name: "Recently Played",
   description: "recently played songs",
   songIds: [],
   createdAt: new Date(),
-  updatedAt: new Date(),
+  updatedAt: new Date(0),
 };
 
 const favouritePlaylistDefault: Playlist = {
@@ -23,7 +24,7 @@ const favouritePlaylistDefault: Playlist = {
   description: "Favourite songs",
   songIds: [],
   createdAt: new Date(),
-  updatedAt: new Date(),
+  updatedAt: new Date(0),
 };
 
 export const createInitialPlayLists = async () => {

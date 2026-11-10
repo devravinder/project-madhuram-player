@@ -78,3 +78,8 @@ export type SyncRecord = {
   trackId: string;
   sha256: string;
 };
+
+export type PlaylistTombstone = {
+  id: string;
+  deletedAt: Date;
+};

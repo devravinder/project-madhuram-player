@@ -3,6 +3,7 @@ import type {
   AppFile,
   OutboxItem,
   Playlist,
+  PlaylistTombstone,
   Song,
   SyncRecord,
 } from "@/types/music";
@@ -14,6 +15,7 @@ export const COLLECTIONS = {
   FILES_COLLECTION: "files",
   OUTBOX_COLLECTION: "outbox",
   SYNC_STATE_COLLECTION: "syncState",
+  PLAYLIST_TOMBSTONES_COLLECTION: "playlistTombstones",
 } as const;
 
 class AppDB extends Dexie {
@@ -22,6 +24,10 @@ class AppDB extends Dexie {
   [COLLECTIONS.FILES_COLLECTION]!: EntityTable<AppFile, "id">;
   [COLLECTIONS.OUTBOX_COLLECTION]!: EntityTable<OutboxItem, "id">;
   [COLLECTIONS.SYNC_STATE_COLLECTION]!: EntityTable<SyncRecord, "trackId">;
+  [COLLECTIONS.PLAYLIST_TOMBSTONES_COLLECTION]!: EntityTable<
+    PlaylistTombstone,
+    "id"
+  >;
 
   constructor() {
     super(DB_NAME);
@@ -94,6 +100,11 @@ class AppDB extends Dexie {
     this.version(8).stores({
       [COLLECTIONS.OUTBOX_COLLECTION]: "id,status,createdAt",
       [COLLECTIONS.SYNC_STATE_COLLECTION]: "trackId",
+    });
+
+    // Remembers deleted playlists until the library knows about it.
+    this.version(9).stores({
+      [COLLECTIONS.PLAYLIST_TOMBSTONES_COLLECTION]: "id",
     });
   }
 }

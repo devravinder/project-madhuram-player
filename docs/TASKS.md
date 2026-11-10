@@ -48,7 +48,7 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 - [x] Byte split, manifest, atomic commit upload, with size and hash checks on download
 - [x] Persisted outbox with resume (retry with backoff, rate-limit hold, offline stop)
 - [x] Repo rollover at the size limit (a large file can span repos; leftover space is reused)
-- [ ] Playlists sync and tombstones
+- [x] Playlists sync and tombstones (newest edit wins, deletes kept as tombstones, Recently Played stays on the device)
 - [~] Sync screen: push local, pull remote (planner, executors and deletes done and tested; the screen itself is next)
 
 ## Phase 5 — Public libraries

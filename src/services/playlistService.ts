@@ -8,7 +8,7 @@ export const createPlaylist = async (
 ): Promise<Playlist> => {
   const newPlaylist: Playlist = {
     ...playlist,
-    id: id || `${getId()}`,
+    id: id || getId(36),
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -28,8 +28,12 @@ export const updatePlaylist = async (
   });
 };
 
+// The tombstone lets sync tell "deleted here" from "never existed here".
 export const deletePlaylist = async (id: string) => {
-  await db.playlists.delete(id);
+  await db.transaction("rw", db.playlists, db.playlistTombstones, async () => {
+    await db.playlists.delete(id);
+    await db.playlistTombstones.put({ id, deletedAt: new Date() });
+  });
 };
 
 export const resetPlaylists = async (playlists: Playlist[]) => {

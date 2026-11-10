@@ -17,7 +17,7 @@ export class LibraryBusyError extends Error {
 // What one commit to the primary repository carries besides the index.
 export type ChangeSet = {
   message: string;
-  index: LibraryIndex;
+  index?: LibraryIndex; // left out when only other files change
   text?: { path: string; content: string }[];
   blobs?: { path: string; sha: string }[]; // already uploaded to this repo
   remove?: string[];
@@ -66,16 +66,26 @@ export class LibraryRepo {
 
   // Applies `build` to the latest index and commits. If another device
   // pushed meanwhile, it reads again and rebuilds from the new state.
+  // Returning nothing from `build` means there is nothing to commit.
   async update(
-    build: (index: LibraryIndex) => ChangeSet | Promise<ChangeSet>,
+    build: (
+      index: LibraryIndex,
+      state: LibraryState,
+    ) => ChangeSet | undefined | Promise<ChangeSet | undefined>,
   ): Promise<LibraryIndex> {
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-      const { index, head } = await this.read();
-      const change = await build(structuredClone(index));
-      const saved = { ...change.index, updatedAt: new Date().toISOString() };
+      const state = await this.read();
+      const { index, head } = state;
+      const change = await build(structuredClone(index), state);
+      if (!change) return index;
+      const saved = change.index
+        ? { ...change.index, updatedAt: new Date().toISOString() }
+        : index;
 
       const changes: TreeChange[] = [
-        { path: INDEX_PATH, sha: await this.blob(serializeIndex(saved)) },
+        ...(change.index
+          ? [{ path: INDEX_PATH, sha: await this.blob(serializeIndex(saved)) }]
+          : []),
         ...(await Promise.all(
           (change.text ?? []).map(async (file) => ({
             path: file.path,
