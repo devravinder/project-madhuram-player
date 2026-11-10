@@ -3,13 +3,19 @@ import { Heart } from "lucide-react";
 import type { ComponentProps } from "react";
 import { tv } from "tailwind-variants";
 
+// h-dvh: the visible height, so the bottom bar is never under the browser's own bar.
 const layout = tv({
-  base: "h-screen w-full overflow-hidden bg-background text-foreground",
+  base: "h-dvh w-full overflow-hidden bg-background text-foreground",
 });
+// The bar stays clear of rounded corners and the home indicator: it grows by
+// the phone's safe area (plus a small gap), like the full player's controls.
 const footer = tv({
-  base: "glass fixed bottom-0 left-0 right-0 h-16 flex items-center justify-center px-4 z-10",
+  base: "glass fixed bottom-0 left-0 right-0 h-[calc(4rem+max(env(safe-area-inset-bottom),0.5rem))] pb-[max(env(safe-area-inset-bottom),0.5rem)] flex items-center justify-center px-4 z-10",
 });
-const main = tv({ base: "absolute pb-16 inset-0 overflow-y-auto" });
+// The top padding keeps pages clear of a notch, since the page reaches the edges.
+const main = tv({
+  base: "absolute pt-[env(safe-area-inset-top)] pb-[calc(4rem+max(env(safe-area-inset-bottom),0.5rem))] inset-0 overflow-y-auto",
+});
 const mainContainer = tv({ base: "h-full flex flex-col relative" });
 const mainSection = tv({ base: "flex-1 overflow-y-auto px-4 py-2" });
 
