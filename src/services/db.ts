@@ -59,6 +59,26 @@ class AppDB extends Dexie {
 
     // The cloud sync tables are gone; null drops them.
     this.version(6).stores({ updateInfo: null, backgroundTasks: null });
+
+    // audioId becomes mediaId; every old song is audio.
+    this.version(7)
+      .stores({ [COLLECTIONS.SONGS_COLLECTION]: "id,title,addedAt,kind" })
+      .upgrade(async (tx) => {
+        const songs = tx.table(COLLECTIONS.SONGS_COLLECTION);
+        const files = tx.table(COLLECTIONS.FILES_COLLECTION);
+
+        for (const old of await songs.toArray()) {
+          const { audioId, ...rest } = old;
+          const file = await files.get(audioId);
+          await songs.put({
+            ...rest,
+            kind: "audio",
+            mediaId: audioId,
+            mime: file?.data.type || "audio/mpeg",
+            bytes: file?.data.size ?? 0,
+          });
+        }
+      });
   }
 }
 

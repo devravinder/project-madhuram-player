@@ -33,7 +33,7 @@ export const deleteSong = async (id: string) => {
   const song = await getSong(id);
   if (!song) return;
 
-  await deleteFile(song.audioId);
+  await deleteFile(song.mediaId);
 
   if (song.coverImageId) await deleteFile(song.coverImageId);
 

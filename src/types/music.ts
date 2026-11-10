@@ -1,3 +1,5 @@
+export type MediaKind = "audio" | "video";
+
 export interface Song {
   id: string;
   title: string;
@@ -5,8 +7,11 @@ export interface Song {
   album: string;
   duration: number; // in seconds
   addedAt: Date;
-  audioId: string;
-  coverImageId?: string;
+  kind: MediaKind;
+  mediaId: string; // key of the audio or video file
+  mime: string;
+  bytes: number;
+  coverImageId?: string; // cover art, or a poster frame for video
 }
 
 export interface Playlist {

@@ -83,7 +83,10 @@ export function UploadModal() {
       artist,
       album,
       duration, // in seconds
-      audioId: audioFile.id,
+      kind: "audio",
+      mediaId: audioFile.id,
+      mime: file.type,
+      bytes: file.size,
       coverImageId,
       addedAt: new Date(),
     };

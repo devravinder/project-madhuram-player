@@ -31,7 +31,7 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 
 ## Phase 3 — Video and model
 
-- [ ] Add `kind`, `mime`, `sha256` and `parts` to the song model, with a Dexie migration
+- [x] Add `kind`, `mime` and `bytes` to the song model, rename `audioId` to `mediaId`, with a Dexie migration
 - [ ] Video player: inline, full screen, Picture-in-Picture
 - [ ] Poster thumbnail and duration for video at import
 
@@ -43,7 +43,7 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 - [ ] Find an existing library repo: reuse if marked, adopt if empty, else ask for a new name
 - [ ] Recover missing shard repos by marker
 - [ ] Create repos, read and write `index.json` with conflict retry
-- [ ] Byte split, manifest, atomic commit upload
+- [ ] Add `sha256` and `parts` to tracks when syncing\n- [ ] Byte split, manifest, atomic commit upload
 - [ ] Persisted outbox with resume
 - [ ] Repo rollover at the size limit
 - [ ] Playlists sync and tombstones

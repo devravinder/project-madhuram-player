@@ -105,7 +105,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       setCurrentSong(song);
 
       const [audioFile, coverFile] = await Promise.all([
-        getFile(song.audioId),
+        getFile(song.mediaId),
         song.coverImageId ? getFile(song.coverImageId) : undefined,
       ]);
       if (request !== loadRequestRef.current) return;
