@@ -28,3 +28,5 @@ dev-dist
 .env
 .env.dev
 coverage
+test-results
+playwright-report

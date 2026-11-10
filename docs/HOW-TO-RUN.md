@@ -26,7 +26,8 @@ come from `.env.development`. Override locally in a git-ignored `.env.local`.
 
 ```bash
 pnpm lint        # oxlint
-pnpm test        # Vitest
+pnpm test        # Vitest (unit; real network is blocked)
+pnpm test:e2e    # Playwright in the installed Chrome, against a fake GitHub
 pnpm lint:md     # markdownlint
 pnpm build       # type-check and production build
 ```

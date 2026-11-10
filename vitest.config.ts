@@ -6,6 +6,7 @@ export default defineConfig({
   test: {
     // Node's File and Blob clone into fake IndexedDB; component tests opt into jsdom.
     environment: "node",
+    include: ["src/**/*.test.{ts,tsx}"],
     setupFiles: ["./src/testing/setup.ts"],
     passWithNoTests: true,
     coverage: {

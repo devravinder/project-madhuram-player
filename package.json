@@ -10,10 +10,11 @@
     "preview": "vite preview",
     "lint": "oxlint",
     "format": "prettier --write .",
-    "lint:md": "markdownlint-cli2 \"**/*.md\" \"#node_modules\" \"#todo.md\"",
+    "lint:md": "markdownlint-cli2 \"**/*.md\" \"#node_modules\" \"#todo.md\" \"#test-results\" \"#playwright-report\"",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "deploy": "node scripts/deploy.mjs"
+    "deploy": "node scripts/deploy.mjs",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@radix-ui/react-dropdown-menu": "2.1.16",
@@ -38,6 +39,7 @@
   "devDependencies": {
     "@commitlint/cli": "21.2.4",
     "@commitlint/config-conventional": "21.2.4",
+    "@playwright/test": "1.64.1",
     "@testing-library/jest-dom": "7.0.1",
     "@testing-library/react": "16.3.3",
     "@testing-library/user-event": "14.6.8",

@@ -64,4 +64,4 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 
 - [x] Storage usage and persistence in settings (device meter, per-repo GitHub meter, keep-data request)
 - [x] Rate limit and error handling UI (auto-resume with time shown, sign in again, error and not-found pages)
-- [ ] End-to-end tests for offline playback and sync
+- [x] End-to-end tests for offline playback and sync (Playwright, fake GitHub, real GitHub blocked)

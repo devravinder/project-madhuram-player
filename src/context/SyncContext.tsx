@@ -15,7 +15,12 @@ import {
 } from "@/services/settingsStore";
 import { deviceProvider } from "@/services/storage/deviceProvider";
 import { syncNow, type SyncMode } from "@/services/sync/engine";
-import { outbox, type StopReason } from "@/services/sync/outbox";
+import {
+  outbox,
+  stopReasonOf,
+  type RunResult,
+  type StopReason,
+} from "@/services/sync/outbox";
 import { syncPlaylists } from "@/services/sync/playlistsSync";
 import { syncSources } from "@/services/sync/sourcesSync";
 import type { OutboxItem } from "@/types/music";
@@ -94,6 +99,23 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     setResumeAt(undefined);
   }, []);
 
+  // Rate limits and retry backoff end on their own; carry on then.
+  const scheduleResume = useCallback(
+    (result: Pick<RunResult, "stoppedBy" | "waitMs">, mode: SyncMode) => {
+      const { waitMs, stoppedBy } = result;
+      const resumes =
+        waitMs !== undefined &&
+        waitMs > 0 &&
+        waitMs <= MAX_AUTO_RESUME_MS &&
+        stoppedBy !== "cancelled" &&
+        stoppedBy !== "auth";
+      if (!resumes) return;
+      setResumeAt(Date.now() + waitMs);
+      resumeTimer.current = setTimeout(() => void syncRef.current?.(mode), waitMs + 250);
+    },
+    [],
+  );
+
   const running = useRef(false);
   const cancelled = useRef(false);
   const opened = useRef<{ key: string; library: LibraryRepo }>(undefined);
@@ -162,33 +184,24 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           failed: result.failed,
           stoppedBy: result.stoppedBy,
         });
-
-        // Rate limits and retry backoff end on their own; carry on then.
-        const autoResume =
-          result.waitMs !== undefined &&
-          result.waitMs > 0 &&
-          result.waitMs <= MAX_AUTO_RESUME_MS &&
-          result.stoppedBy !== "cancelled" &&
-          result.stoppedBy !== "auth";
-        if (autoResume) {
-          setResumeAt(Date.now() + result.waitMs!);
-          resumeTimer.current = setTimeout(
-            () => void syncRef.current?.(mode),
-            result.waitMs! + 250,
-          );
-        }
+        scheduleResume(result, mode);
       } catch (problem) {
-        report(problem);
-        // A rejected token can surface outside the queue too, e.g. on connect.
-        if (problem instanceof HttpError && problem.status === 401) {
-          setLast({ at: Date.now(), queued: 0, done: 0, failed: 0, stoppedBy: "auth" });
+        // Offline, rate limit or a rejected token can also hit while
+        // connecting or syncing playlists; they pause like queued steps do.
+        const stop = stopReasonOf(problem);
+        if (stop) {
+          const paused = { done: 0, failed: 0, stoppedBy: stop.reason, waitMs: stop.waitMs };
+          setLast({ at: Date.now(), queued: 0, ...paused });
+          scheduleResume(paused, mode);
+        } else {
+          report(problem);
         }
       } finally {
         running.current = false;
         setPhase("idle");
       }
     },
-    [signedIn, getLibrary, report, clearResume],
+    [signedIn, getLibrary, report, clearResume, scheduleResume],
   );
 
   useEffect(() => {
@@ -225,7 +238,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         await syncPlaylists(library);
         await syncSources(library);
       } catch (problem) {
-        report(problem);
+        // Background work stays quiet when offline or limited; Sync shows it.
+        if (!stopReasonOf(problem)) report(problem);
       }
     }, PLAYLIST_SYNC_DELAY_MS);
     return () => clearTimeout(timer);
