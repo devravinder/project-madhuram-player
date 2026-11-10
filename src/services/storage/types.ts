@@ -31,6 +31,7 @@ export interface StorageProvider {
   readonly label: string;
   readonly writable: boolean;
   listTracks(): Promise<TrackMeta[]>;
+  getTrack(id: string): Promise<TrackMeta | undefined>;
   readTrackFiles(id: string): Promise<TrackFiles>;
   writeTrack(meta: TrackMeta, files: TrackFiles): Promise<void>;
   removeTrack(id: string): Promise<void>;

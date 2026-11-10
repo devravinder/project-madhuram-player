@@ -24,6 +24,20 @@ export type RunOptions = {
 
 const keyOf = (op: OutboxOp, trackId: string) => `${op}:${trackId}`;
 
+export type StopReason = NonNullable<RunResult["stoppedBy"]>;
+
+// Errors that mean "stop and try later" rather than "this step is broken".
+export function stopReasonOf(
+  error: unknown,
+): { reason: StopReason; waitMs?: number } | undefined {
+  if (error instanceof RateLimitError) {
+    return { reason: "rate-limit", waitMs: error.retryAfterSeconds * 1000 };
+  }
+  if (error instanceof HttpError && error.status === 0) return { reason: "offline" };
+  if (error instanceof HttpError && error.status === 401) return { reason: "auth" };
+  return undefined;
+}
+
 export const outbox = {
   // Queuing the same step twice does nothing. Returns how many were new.
   async enqueue(

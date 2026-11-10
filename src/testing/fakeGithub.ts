@@ -46,6 +46,7 @@ export class FakeGithub {
   readonly requests: string[] = [];
 
   private rateLimited = 0;
+  private writesLimited = 0;
   private refLag = 0;
   private beforeRefUpdate?: () => Promise<void>;
   private counter = 0;
@@ -59,6 +60,11 @@ export class FakeGithub {
 
   limitNext(count: number) {
     this.rateLimited = count;
+  }
+
+  // Like limitNext, but only for requests that change data.
+  limitNextWrites(count: number) {
+    this.writesLimited = count;
   }
 
   // The next branch lookups say "not found", like a repo that was just created.
@@ -122,6 +128,14 @@ export class FakeGithub {
     }
     if (this.rateLimited > 0) {
       this.rateLimited--;
+      return failure(403, "API rate limit exceeded", {
+        "x-ratelimit-remaining": "0",
+        "retry-after": "7",
+      });
+    }
+
+    if (this.writesLimited > 0 && method !== "GET") {
+      this.writesLimited--;
       return failure(403, "API rate limit exceeded", {
         "x-ratelimit-remaining": "0",
         "retry-after": "7",

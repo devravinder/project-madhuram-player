@@ -38,6 +38,11 @@ export const deviceProvider: StorageProvider = {
     return (await getSongs()).map(toMeta);
   },
 
+  async getTrack(id) {
+    const song = await getSong(id);
+    return song && toMeta(song);
+  },
+
   async readTrackFiles(id) {
     const song = await getSong(id);
     if (!song) throw new TrackNotFoundError(id);

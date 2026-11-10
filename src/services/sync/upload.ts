@@ -39,6 +39,9 @@ type Planned = {
   path: string;
 };
 
+// An uploaded track always has its content hash.
+export type UploadedEntry = TrackEntry & { sha256: string };
+
 export type UploadOptions = {
   onProgress?: (donePartsCount: number, totalParts: number) => void;
   sleep?: Sleep;
@@ -145,7 +148,7 @@ export async function uploadTrack(
   meta: TrackMeta,
   files: TrackFiles,
   options: UploadOptions = {},
-): Promise<TrackEntry> {
+): Promise<UploadedEntry> {
   const { api, owner } = library;
   const mediaSha = await sha256Hex(files.media);
 
@@ -154,7 +157,7 @@ export async function uploadTrack(
     throw new InvalidLimitsError();
   }
   const existing = index.tracks.find((t) => t.id === meta.id && !t.deleted);
-  if (existing?.sha256 === mediaSha) return existing;
+  if (existing?.sha256 === mediaSha) return { ...existing, sha256: mediaSha };
 
   const coverSha = files.cover ? await sha256Hex(files.cover) : undefined;
   const planned = await planWithRollover(library, meta.id, files, index, options);
@@ -194,7 +197,7 @@ export async function uploadTrack(
         : undefined,
   };
 
-  const entry: TrackEntry = {
+  const entry: UploadedEntry = {
     ...meta,
     bytes: files.media.size,
     sha256: mediaSha,

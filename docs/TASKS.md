@@ -49,7 +49,7 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 - [x] Persisted outbox with resume (retry with backoff, rate-limit hold, offline stop)
 - [x] Repo rollover at the size limit (a large file can span repos; leftover space is reused)
 - [ ] Playlists sync and tombstones
-- [ ] Sync screen: push local, pull remote
+- [~] Sync screen: push local, pull remote (planner, executors and deletes done and tested; the screen itself is next)
 
 ## Phase 5 — Public libraries
 
