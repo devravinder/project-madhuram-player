@@ -1,6 +1,6 @@
 import { usePlayer } from "@/context/PlayerContext";
 import { useState } from "react";
-import Modal from "../Modal";
+import { createPortal } from "react-dom";
 import FullScreenPlayer from "./FullScreenPlayer";
 import MiniPlayer from "./MiniPlayer";
 
@@ -13,11 +13,10 @@ export default function Player() {
     return undefined;
   }
 
+  // The open player covers the whole screen, above the page and its menus.
   return isMini ? (
     <MiniPlayer onClick={() => setMini(false)} />
   ) : (
-    <Modal>
-      <FullScreenPlayer onClose={()=>setMini(true)} />
-    </Modal>
+    createPortal(<FullScreenPlayer onClose={() => setMini(true)} />, document.body)
   );
 }

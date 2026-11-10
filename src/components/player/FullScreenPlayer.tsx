@@ -1,9 +1,12 @@
 import { usePlayer } from "@/context/PlayerContext";
+import { usePlaylists } from "@/context/PlaylistContext";
 import { formatTime } from "@/services/timeUtil";
 import {
-  CircleEllipsis,
-  ListMusic,
+  ChevronDown,
+  Ellipsis,
+  Maximize,
   Pause,
+  PictureInPicture2,
   Play,
   Repeat,
   Repeat1,
@@ -12,24 +15,135 @@ import {
   Shuffle,
   SkipBack,
   SkipForward,
+  Timer,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
+import AudioImage from "../AudioImage";
 import { Like } from "../Elements";
 import { ProgressBar } from "./ProgressBar";
 import SleeperTimer from "./SleeperTimer";
+import { useVideoActions, VideoSurface } from "./VideoSurface";
 import { VolumeSlider } from "./VolumeSlider";
-import Waves from "../Waves";
-import { usePlaylists } from "@/context/PlaylistContext";
-import AudioImage from "../AudioImage";
-import { VideoSurface } from "./VideoSurface";
 
-export default function FullScreenPlayer({
-  onClose,
-}: {
-  onClose?: VoidFunction;
+const SEEK_STEP = 15;
+
+// A round, labelled button for the player; `active` marks a mode that is on.
+function PlayerButton({
+  label,
+  active,
+  className = "",
+  ...props
+}: ComponentProps<"button"> & { label: string; active?: boolean }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      className={`cursor-pointer shrink-0 grid place-items-center rounded-full size-10 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-primary transition-colors ${
+        active === undefined ? "" : active ? "text-primary" : "text-white/60"
+      } ${className}`}
+      {...props}
+    />
+  );
+}
+
+function SeekButton({ forward, onClick }: { forward?: boolean; onClick: VoidFunction }) {
+  const Icon = forward ? RotateCw : RotateCcw;
+  return (
+    <PlayerButton
+      label={forward ? `Forward ${SEEK_STEP} seconds` : `Back ${SEEK_STEP} seconds`}
+      onClick={onClick}
+      className="relative text-white/70"
+    >
+      <Icon className="size-7 stroke-1" />
+      <span className="absolute text-[10px] leading-none">{SEEK_STEP}</span>
+    </PlayerButton>
+  );
+}
+
+// Secondary controls, in a small panel above the "More options" button.
+function MoreControls(props: {
+  onClose: VoidFunction;
+  shuffle: boolean;
+  toggleShuffle: VoidFunction;
+  repeatIcon: ReactNode;
+  repeatLabel: string;
+  repeatOn: boolean;
+  toggleRepeat: VoidFunction;
+  seekBy: (seconds: number) => void;
+  volume: number;
+  setVolume: (volume: number) => void;
+  sleepOn: boolean;
 }) {
-  const {favourites, toggleLike } = usePlaylists()
+  const [timer, setTimer] = useState(false);
+
+  return (
+    <>
+      {/* Tapping anywhere else closes the panel. */}
+      <button
+        type="button"
+        aria-label="Close options"
+        tabIndex={-1}
+        className="fixed inset-0 z-10 cursor-default"
+        onClick={props.onClose}
+      />
+      <div
+        role="dialog"
+        aria-label="More options"
+        className="absolute bottom-full right-0 mb-2 z-20 max-w-[calc(100vw-2rem)]"
+      >
+        {timer ? (
+          <div className="text-foreground">
+            <SleeperTimer onClose={props.onClose} />
+          </div>
+        ) : (
+          <div className="w-64 flex flex-col gap-2 p-3 rounded-2xl bg-slate-800 shadow-2xl ring-1 ring-white/10">
+            <div className="flex items-center justify-between">
+              <PlayerButton
+                label="Shuffle"
+                aria-pressed={props.shuffle}
+                active={props.shuffle}
+                onClick={props.toggleShuffle}
+              >
+                <Shuffle className="size-5" />
+              </PlayerButton>
+              <SeekButton onClick={() => props.seekBy(-SEEK_STEP)} />
+              <SeekButton forward onClick={() => props.seekBy(SEEK_STEP)} />
+              <PlayerButton
+                label={props.repeatLabel}
+                aria-pressed={props.repeatOn}
+                active={props.repeatOn}
+                onClick={props.toggleRepeat}
+              >
+                {props.repeatIcon}
+              </PlayerButton>
+            </div>
+            <VolumeSlider volume={props.volume} onVolumeChange={props.setVolume} />
+            <button
+              type="button"
+              onClick={() => setTimer(true)}
+              className={`cursor-pointer flex items-center gap-2 p-2 rounded-lg hover:bg-white/10 ${
+                props.sleepOn ? "text-primary" : ""
+              }`}
+            >
+              <Timer className="size-5" />
+              {props.sleepOn ? "Sleep timer is on" : "Sleep timer"}
+            </button>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+// The open player: a slim top bar, the cover or video filling the free
+// space, and the controls kept compact at the bottom. On short landscape
+// screens the media and the controls sit side by side.
+export default function FullScreenPlayer({ onClose }: { onClose: VoidFunction }) {
+  const { favourites, toggleLike } = usePlaylists();
   const [showMenu, setShowMenu] = useState(false);
+  const videoHost = useRef<HTMLDivElement>(null);
+  const video = useVideoActions(videoHost);
 
   const {
     currentSong: song,
@@ -40,6 +154,7 @@ export default function FullScreenPlayer({
     repeatMode,
     volume,
     setVolume,
+    sleepTimer,
     toggleRepeat,
     toggleShuffle,
     togglePlay,
@@ -48,159 +163,155 @@ export default function FullScreenPlayer({
     seek,
   } = usePlayer();
 
-  if (!song) {
-    return undefined;
+  // Escape minimizes, unless the sleep timer menu is open.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (showMenu) setShowMenu(false);
+      else onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showMenu, onClose]);
+
+  if (!song) return undefined;
+
+  const isVideo = song.kind === "video";
+  const isLiked = favourites.includes(song.id);
+  const RepeatIcon = repeatMode === "one" ? Repeat1 : Repeat;
+  const repeatLabel =
+    repeatMode === "one" ? "Repeat one" : repeatMode === "all" ? "Repeat all" : "Repeat off";
+
+  let media: ReactNode;
+  if (isVideo) {
+    media = <VideoSurface hostRef={videoHost} className="size-full" />;
+  } else {
+    // The cover stays square and as large as the free space allows.
+    media = (
+      <div className="size-full grid place-items-center [container-type:size]">
+        <AudioImage
+          id={song.coverImageId}
+          src={song.coverUrl}
+          alt={song.title}
+          className="w-[min(100cqw,100cqh)] h-auto max-h-full aspect-square object-cover rounded-2xl shadow-2xl"
+        />
+      </div>
+    );
   }
 
-  const RepeatIcon = repeatMode === "one" ? Repeat1 : Repeat;
-  const isLiked = favourites.includes(song?.id);
-
   return (
-    <div className="w-full max-w-md mx-auto h-full p-4 flex flex-col">
-      <div className="flex-1 min-h-0 flex flex-col bg-linear-to-br from-slate-900 to-slate-800 rounded-3xl shadow-2xl">
-        <div className="flex justify-center items-center relative">
-          {song.kind === "video" ? (
-            <VideoSurface className="w-full aspect-video rounded-t-3xl overflow-hidden" />
-          ) : (
-            <AudioImage id={song.coverImageId} src={song.coverUrl} alt={song.title} className="w-full aspect-square rounded-t-3xl object-cover" />
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Now playing: ${song.title}`}
+      className="fixed inset-0 z-50 h-dvh flex flex-col overflow-hidden text-white bg-linear-to-b from-slate-800 to-slate-950 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
+    >
+      <div
+        className={`mx-auto w-full h-full min-h-0 flex flex-col ${
+          isVideo ? "max-w-5xl" : "max-w-lg short:max-w-4xl"
+        }`}
+      >
+        <header className="shrink-0 h-12 px-2 flex items-center gap-1">
+          <PlayerButton label="Minimize player" onClick={onClose}>
+            <ChevronDown className="size-6" />
+          </PlayerButton>
+          <span className="flex-1 text-center text-xs uppercase tracking-wider text-white/60 truncate">
+            Now playing
+          </span>
+          {isVideo && video.canPictureInPicture && (
+            <PlayerButton label="Picture in picture" onClick={video.togglePictureInPicture}>
+              <PictureInPicture2 className="size-5" />
+            </PlayerButton>
           )}
-          <div className="pointer-events-none absolute inset-0 bg-linear-to-t from-slate-900/90 via-transparent to-transparent" />
-          <button
-            onClick={() => toggleLike(song.id)}
-            className="absolute top-4 right-4 p-2.5 bg-black/30 backdrop-blur-sm rounded-full hover:bg-black/50 transition-all"
+          {isVideo && (
+            <PlayerButton label="Fullscreen" onClick={video.enterFullscreen}>
+              <Maximize className="size-5" />
+            </PlayerButton>
+          )}
+        </header>
+
+        <div className="flex-1 min-h-0 flex flex-col short:flex-row gap-4 px-4 pb-4">
+          <div className="flex-1 min-h-0 min-w-0">{media}</div>
+
+          <section
+            aria-label="Playback controls"
+            className="shrink-0 flex flex-col gap-2 short:w-[45%] short:justify-center"
           >
-            <Like liked={isLiked} />
-          </button>
-        </div>
-        <div className="flex items-center justify-center px-4 py-4">
-          <div className="w-full flex flex-col gap-4">
-            <div className="flex flex-row w-full gap-2 items-center justify-between">
-              <div className="flex flex-col gap-2">
-                <p className="font-medium text-sm line-clamp-1 text-ellipsis">
-                  {song.title}
-                </p>
-                <p className="text-xs text-muted-foreground line-clamp-1 text-ellipsis">
-                  {song.artist}
-                </p>
-              </div>
-              <div className="h-10 w-10">
-                <Waves start={isPlaying} />
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <button
-                  onClick={onClose}
-                  className={`cursor-pointer p-2 rounded-lg bg-accent text-muted-foreground`}
-                >
-                  <ListMusic className="h-5 w-5" />
-                </button>
-                <div
-                  onClick={() => setShowMenu(true)}
-                  className={`group relative cursor-pointer p-2 rounded-lg bg-accent text-muted-foreground`}
-                >
-                  <CircleEllipsis className="w-5 h-5" />
-                  {showMenu && (
-                    <div className="absolute bottom-full right-1/2 -translate-y-2">
-                      <SleeperTimer onClose={() => setShowMenu(false)} />
-                    </div>
-                  )}
-                </div>
-              </div>
+            <div className="min-w-0">
+              <p className="font-semibold truncate">{song.title}</p>
+              <p className="text-sm text-white/60 truncate">{song.artist}</p>
             </div>
-            <div className="flex flex-col gap-1">
+
+            <div className="flex items-center gap-2 text-xs text-white/60 tabular-nums">
+              <span className="w-10 text-right">{formatTime(progress)}</span>
               <ProgressBar
                 progress={progress}
                 duration={duration}
                 onSeek={seek}
+                className="flex-1"
               />
-              <div className="flex flex-row justify-between items-center gap-2">
-                <span className="text-xs text-muted-foreground w-10 text-right">
-                  {formatTime(progress)}
-                </span>
-                <span className="text-xs text-muted-foreground w-10">
-                  {formatTime(duration)}
-                </span>
+              <span className="w-10">{formatTime(duration)}</span>
+            </div>
+
+            {/* Main controls only; the rest sit behind "More options". */}
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center">
+              <PlayerButton
+                label={isLiked ? "Remove from favourites" : "Add to favourites"}
+                aria-pressed={isLiked}
+                onClick={() => toggleLike(song.id)}
+                className="justify-self-start"
+              >
+                <Like liked={isLiked} />
+              </PlayerButton>
+              <div className="flex items-center gap-3">
+                <PlayerButton label="Previous" onClick={previous}>
+                  <SkipBack className="size-6" />
+                </PlayerButton>
+                <PlayerButton
+                  label={isPlaying ? "Pause" : "Play"}
+                  onClick={togglePlay}
+                  className="size-14 bg-white text-slate-900 hover:bg-white/90"
+                >
+                  {isPlaying ? <Pause className="size-6" /> : <Play className="size-6 translate-x-px" />}
+                </PlayerButton>
+                <PlayerButton label="Next" onClick={next}>
+                  <SkipForward className="size-6" />
+                </PlayerButton>
+              </div>
+              <div className="relative justify-self-end">
+                <PlayerButton
+                  label="More options"
+                  aria-expanded={showMenu}
+                  aria-haspopup="dialog"
+                  onClick={() => setShowMenu((open) => !open)}
+                  className="relative"
+                >
+                  <Ellipsis className="size-5" />
+                  {/* A dot shows that a secondary mode is on. */}
+                  {(shuffle || repeatMode !== "off" || sleepTimer.isActive) && (
+                    <span aria-hidden className="absolute top-1.5 right-1.5 size-2 rounded-full bg-primary" />
+                  )}
+                </PlayerButton>
+                {showMenu && (
+                  <MoreControls
+                    onClose={() => setShowMenu(false)}
+                    shuffle={shuffle}
+                    toggleShuffle={toggleShuffle}
+                    repeatIcon={<RepeatIcon className="size-5" />}
+                    repeatLabel={repeatLabel}
+                    repeatOn={repeatMode !== "off"}
+                    toggleRepeat={toggleRepeat}
+                    seekBy={(seconds) =>
+                      seek(Math.min(duration, Math.max(0, progress + seconds)))
+                    }
+                    volume={volume}
+                    setVolume={setVolume}
+                    sleepOn={sleepTimer.isActive}
+                  />
+                )}
               </div>
             </div>
-            <div className="flex flex-col justify-center">
-              <div className="w-full max-w-sm mx-auto space-y-2 px-4">
-                <div className="grid grid-cols-4 justify-items-center sm:gap-2 gap-8">
-                  <div className=" col-span-1">
-                    <button
-                      onClick={() => seek(progress - 15)}
-                      className="cursor-pointer p-2 rounded-full hover:bg-accent relative flex items-center justify-center"
-                    >
-                      <RotateCcw className="h-7 w-7 text-muted-foreground font-thin stroke-1" />
-                      <span className="absolute leading-none text-muted-foreground text-xs top-1/2 -translate-y-1/2">
-                        15
-                      </span>
-                    </button>
-                  </div>
-                  <div className="col-span-2 w-full flex flex-row items-center justify-center gap-1">
-                    <button
-                      onClick={previous}
-                      className="p-2 cursor-pointer rounded-full hover:bg-accent"
-                    >
-                      <SkipBack className="h-6 w-6" />
-                    </button>
-                    <button
-                      onClick={togglePlay}
-                      className="rounded-full cursor-pointer bg-muted p-3"
-                    >
-                      {isPlaying ? (
-                        <Pause className="h-6 w-6" />
-                      ) : (
-                        <Play className="h-6 w-6" />
-                      )}
-                    </button>
-                    <button
-                      onClick={next}
-                      className="p-2 cursor-pointer rounded-full hover:bg-accent"
-                    >
-                      <SkipForward className="h-6 w-6" />
-                    </button>
-                  </div>
-                  <div className=" col-span-1">
-                    <button
-                      onClick={() => seek(progress + 15)}
-                      className="cursor-pointer p-2 rounded-full hover:bg-accent relative flex items-center justify-center"
-                    >
-                      <RotateCw className="h-7 w-7 text-muted-foreground font-thin stroke-1" />
-                      <span className="absolute leading-none text-muted-foreground text-xs top-1/2 -translate-y-1/2">
-                        15
-                      </span>
-                    </button>
-                  </div>
-                </div>
-                <div className="grid grid-cols-4 justify-items-center sm:gap-2 gap-8">
-                  <div className="col-span-1">
-                    <button
-                      onClick={toggleShuffle}
-                      className={`p-2 cursor-pointer rounded-full hover:bg-accent ${
-                        shuffle ? "text-primary" : "text-muted-foreground"
-                      }`}
-                    >
-                      <Shuffle className="h-6 w-6" />
-                    </button>
-                  </div>
-                  <div className="col-span-2 flex w-full justify-center">
-                    <VolumeSlider volume={volume} onVolumeChange={setVolume} />
-                  </div>
-                  <div className="col-span-1">
-                    <button
-                      onClick={toggleRepeat}
-                      className={`p-2 cursor-pointer rounded-full hover:bg-accent ${
-                        repeatMode !== "off"
-                          ? "text-primary"
-                          : "text-muted-foreground"
-                      }`}
-                    >
-                      <RepeatIcon className="h-6 w-6" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          </section>
         </div>
       </div>
     </div>

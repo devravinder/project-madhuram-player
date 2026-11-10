@@ -27,8 +27,10 @@ export function VolumeSlider({ volume, onVolumeChange }: VolumeSliderProps) {
   const VolumeIcon = volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
 
   return (
-    <div className="w-full hidden sm:flex items-center justify-between gap-2 ">
+    <div className="w-full flex items-center justify-between gap-2 ">
       <button
+        type="button"
+        aria-label={volume === 0 ? "Unmute" : "Mute"}
         onClick={toggleMute}
         className="p-2 cursor-pointer rounded-full hover:bg-accent"
       >

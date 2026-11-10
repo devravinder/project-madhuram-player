@@ -2,6 +2,8 @@
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
+/* Phones held sideways and other short screens: lay things out side by side. */
+@custom-variant short (@media (max-height: 520px) and (orientation: landscape));
 
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);

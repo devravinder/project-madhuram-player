@@ -1,17 +1,19 @@
 import { usePlayer } from "@/context/PlayerContext";
-import { Maximize, PictureInPicture2 } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, type RefObject } from "react";
 import { toast } from "sonner";
-import { IconButton } from "../Elements";
 
 type IosVideo = HTMLVideoElement & { webkitEnterFullscreen?: () => void };
 
 // Shows the player's own video element, so playback never restarts.
-export function VideoSurface({ className = "" }: { className?: string }) {
+// Its buttons live in the player's top bar, so nothing covers the picture.
+export function VideoSurface({
+  hostRef,
+  className = "",
+}: {
+  hostRef: RefObject<HTMLDivElement | null>;
+  className?: string;
+}) {
   const { mediaElement } = usePlayer();
-  const hostRef = useRef<HTMLDivElement>(null);
-  const canPictureInPicture =
-    document.pictureInPictureEnabled && !mediaElement.disablePictureInPicture;
 
   useEffect(() => {
     const host = hostRef.current;
@@ -29,7 +31,15 @@ export function VideoSurface({ className = "" }: { className?: string }) {
       mediaElement.controls = false;
       if (mediaElement.parentElement === host) host.removeChild(mediaElement);
     };
-  }, [mediaElement]);
+  }, [mediaElement, hostRef]);
+
+  return <div ref={hostRef} className={`[&:fullscreen]:bg-black ${className}`} />;
+}
+
+export function useVideoActions(hostRef: RefObject<HTMLDivElement | null>) {
+  const { mediaElement } = usePlayer();
+  const canPictureInPicture =
+    document.pictureInPictureEnabled && !mediaElement.disablePictureInPicture;
 
   const enterFullscreen = async () => {
     try {
@@ -56,26 +66,5 @@ export function VideoSurface({ className = "" }: { className?: string }) {
     }
   };
 
-  return (
-    <div ref={hostRef} className={`relative bg-black ${className}`}>
-      <div className="absolute top-4 left-4 flex gap-2">
-        {canPictureInPicture && (
-          <IconButton
-            aria-label="Picture in picture"
-            onClick={togglePictureInPicture}
-            className="bg-black/40 backdrop-blur-sm text-white size-9"
-          >
-            <PictureInPicture2 className="size-5" />
-          </IconButton>
-        )}
-        <IconButton
-          aria-label="Fullscreen"
-          onClick={enterFullscreen}
-          className="bg-black/40 backdrop-blur-sm text-white size-9"
-        >
-          <Maximize className="size-5" />
-        </IconButton>
-      </div>
-    </div>
-  );
+  return { canPictureInPicture, enterFullscreen, togglePictureInPicture };
 }

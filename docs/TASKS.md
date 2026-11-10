@@ -74,3 +74,4 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 - [x] Public library downloads wait out the background too
 - [x] Unfinished sync steps resume when the app opens
 - [x] No automatic uploads; Settings lists songs not backed up, upload one or all
+- [x] Player redesign: fits every screen, main controls only, the rest under "More options"
