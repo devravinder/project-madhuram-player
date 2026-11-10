@@ -28,20 +28,20 @@ test("backs a library up to GitHub and restores it on a fresh device", async ({ 
   ]);
 
   await page.goto("/#/settings");
-  await expect(page.getByText(`tester/${REPO}`)).toBeVisible();
+  await expect(page.getByRole("paragraph").filter({ hasText: `tester/${REPO}` })).toBeVisible();
   await page.getByRole("button", { name: "Sync", exact: true }).click();
-  await expect(page.getByText("Everything is up to date.")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("Up to date.")).toBeVisible({ timeout: 15_000 });
   expect(await remoteTitles(page)).toEqual([]); // a plain sync uploads nothing new
 
   await uploadAll(page, 2);
-  await expect(page.getByText("Synced 2 items.")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("Synced 2.")).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText("Every song is backed up.")).toBeVisible();
   expect(await remoteTitles(page)).toEqual(["Alpha", "Beta"]);
   expect(await page.evaluate((r) => (window as any).__fake.repos.get(r).private, REPO)).toBe(true);
 
   await wipeDevice(page);
   await page.getByRole("button", { name: "Download" }).click();
-  await expect(page.getByText("Synced 2 items.")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("Synced 2.")).toBeVisible({ timeout: 20_000 });
 
   const restored = await page.evaluate(async () => {
     const { getSongs } = await import(/* @vite-ignore */ "/src/services/songsService.ts");
@@ -57,7 +57,7 @@ test("backs a library up to GitHub and restores it on a fresh device", async ({ 
   ]);
 
   await page.getByRole("button", { name: "Sync", exact: true }).click();
-  await expect(page.getByText("Everything is up to date.")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("Up to date.")).toBeVisible({ timeout: 15_000 });
 });
 
 test("waits out a GitHub rate limit and carries on by itself", async ({ page }) => {
@@ -68,8 +68,8 @@ test("waits out a GitHub rate limit and carries on by itself", async ({ page }) 
   await page.evaluate(() => (window as any).__fake.limitNextWrites(1));
   await uploadAll(page, 1);
 
-  await expect(page.getByText(/slow down\. Continues by itself at/)).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText("Synced 1 item.")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText(/limit reached\. Retrying at/)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("Synced 1.")).toBeVisible({ timeout: 20_000 });
   expect(await remoteTitles(page)).toEqual(["Gamma"]);
 });
 
@@ -106,7 +106,7 @@ test("deletes a backed-up song from GitHub, or from this device only", async ({ 
   ]);
   await page.goto("/#/settings");
   await uploadAll(page, 2);
-  await expect(page.getByText("Synced 2 items.")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("Synced 2.")).toBeVisible({ timeout: 20_000 });
   const before = (await remotePaths(page)).length;
 
   // Delete everywhere: the files leave GitHub straight away.
@@ -123,11 +123,11 @@ test("deletes a backed-up song from GitHub, or from this device only", async ({ 
   expect(await remoteTitles(page)).toEqual(["Kept"]);
 
   await page.goto("/#/settings");
-  await expect(page.getByText("1 song is kept on GitHub only.", { exact: false })).toBeVisible();
+  await expect(page.getByText("1 on GitHub only.", { exact: false })).toBeVisible();
   await page.getByRole("button", { name: "Sync", exact: true }).click();
-  await expect(page.getByText("Everything is up to date.")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("Up to date.")).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: "Download" }).click();
-  await expect(page.getByText("Synced 1 item.")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("Synced 1.")).toBeVisible({ timeout: 20_000 });
   await page.goto("/#/library");
   await expect(page.getByText("1 songs")).toBeVisible();
   await expect(page.getByText("Kept", { exact: true })).toBeVisible();
@@ -156,7 +156,7 @@ test("carries on with unfinished sync steps when the app opens signed in", async
 
   await expect.poll(() => remoteTitles(page).catch(() => []), { timeout: 20_000 }).toEqual(["Leftover"]);
   await page.goto("/#/settings");
-  await expect(page.getByText("Synced 1 item.")).toBeVisible();
+  await expect(page.getByText("Synced 1.")).toBeVisible();
 });
 
 test("uploads just the chosen song and nothing after import", async ({ page }) => {
@@ -172,9 +172,26 @@ test("uploads just the chosen song and nothing after import", async ({ page }) =
   await page.getByText("Not backed up (2)").click();
   await expect(page.getByText("46.9 KB")).toBeVisible(); // sizes help leave big files out
   await page.getByRole("button", { name: "Upload Small" }).click();
-  await expect(page.getByText("Synced 1 item.")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("Synced 1.")).toBeVisible({ timeout: 20_000 });
 
   expect(await remoteTitles(page)).toEqual(["Small"]);
   await expect(page.getByText("Not backed up (1)")).toBeVisible();
   await expect(page.getByRole("button", { name: "Upload Huge" })).toBeVisible();
+});
+
+test("explains how to share the library, collapsed until asked", async ({ page }) => {
+  await signInWithFake(page);
+  await page.goto("/#/settings");
+
+  const help = page.getByText("How do I share my music?");
+  await expect(help).toBeVisible();
+  await expect(page.getByText("Change visibility", { exact: false })).toBeHidden();
+
+  await help.click();
+  await expect(page.getByText("Change visibility", { exact: false })).toBeVisible();
+  await expect(page.locator("span.font-mono", { hasText: `tester/${REPO}` })).toBeVisible();
+  await expect(page.getByRole("link", { name: "your library's settings on GitHub" })).toHaveAttribute(
+    "href",
+    `https://github.com/tester/${REPO}/settings`,
+  );
 });

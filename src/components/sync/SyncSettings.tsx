@@ -5,20 +5,21 @@ import { authStore } from "@/services/github/authStore";
 import { CloudDownload, RefreshCcw, Square } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import NotBackedUp from "./NotBackedUp";
+import ShareHelp from "./ShareHelp";
 
 const STOP_TEXT = {
-  offline: "You are offline. Waiting items will sync when you reconnect.",
-  "rate-limit": "GitHub asked us to slow down.",
-  auth: "GitHub rejected the token. Remove it and sign in again.",
-  cancelled: "Stopped. Waiting items stay queued.",
+  offline: "Offline. Will sync when back online.",
+  "rate-limit": "GitHub limit reached.",
+  auth: "Token rejected. Sign in again.",
+  cancelled: "Stopped.",
 } as const;
 
 function summarize(last: LastRun | undefined) {
   if (!last) return "";
   if (last.stoppedBy) return STOP_TEXT[last.stoppedBy];
-  if (last.queued === 0 && last.done === 0) return "Everything is up to date.";
+  if (last.queued === 0 && last.done === 0) return "Up to date.";
   const failed = last.failed > 0 ? `, ${last.failed} failed` : "";
-  return `Synced ${last.done} item${last.done === 1 ? "" : "s"}${failed}.`;
+  return `Synced ${last.done}${failed}.`;
 }
 
 function RepoNameForm({ taken }: { taken?: string }) {
@@ -88,10 +89,10 @@ export default function SyncSettings() {
   const busy = phase !== "idle";
   const statusText = busy
     ? phase === "connecting"
-      ? "Connecting to GitHub..."
-      : `Syncing... ${waiting} waiting`
+      ? "Connecting..."
+      : `Syncing... ${waiting} left`
     : waiting > 0
-      ? `${waiting} waiting to sync. ${summarize(last)}`
+      ? `${waiting} waiting. ${summarize(last)}`
       : summarize(last);
 
   return (
@@ -133,24 +134,21 @@ export default function SyncSettings() {
       </div>
 
       <p className="text-sm text-muted-foreground">
-        Sync brings in songs from your other devices and keeps playlists in step. New
-        songs go to GitHub only when you upload them below.
+        Sync gets songs from your other devices. New songs upload only from the list below.
       </p>
 
       <NotBackedUp />
 
       {keptOnGithub > 0 && (
         <p className="text-sm text-muted-foreground">
-          {keptOnGithub === 1 ? "1 song is" : `${keptOnGithub} songs are`} kept on
-          GitHub only. Download brings {keptOnGithub === 1 ? "it" : "them"} back to
-          this device.
+          {keptOnGithub} on GitHub only. Download to get {keptOnGithub === 1 ? "it" : "them"} back.
         </p>
       )}
 
       <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
         {statusText}
         {!busy && resumeAt && (
-          <> Continues by itself at {new Date(resumeAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}.</>
+          <> Retrying at {new Date(resumeAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.</>
         )}
       </p>
 
@@ -174,21 +172,19 @@ export default function SyncSettings() {
 
       {failedItems.length > 0 && (
         <div className="flex flex-col gap-2">
-          <p className="text-sm text-destructive">
-            {failedItems.length} item{failedItems.length === 1 ? "" : "s"} could not be synced:
-          </p>
+          <p className="text-sm text-destructive">{failedItems.length} failed.</p>
           <ul className="text-xs text-muted-foreground list-disc pl-5">
             {failedItems.slice(0, 5).map((item) => (
-              <li key={item.id}>
-                {item.op} {item.trackId.slice(0, 8)}: {item.lastError ?? "unknown error"}
-              </li>
+              <li key={item.id}>{item.lastError ?? "Unknown error"}</li>
             ))}
           </ul>
           <Button.Secondary onClick={() => void retryFailed()} disabled={busy} className="text-base">
-            Retry failed
+            Retry
           </Button.Secondary>
         </div>
       )}
+
+      <ShareHelp owner={user?.login ?? "you"} repo={repoName} />
     </section>
   );
 }
