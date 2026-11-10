@@ -15,6 +15,9 @@ interface SongCardProps {
   index: number;
 }
 
+// The playing song's title and waves share one accent color.
+const ACTIVE_COLOR = "text-emerald-300";
+
 export default function SongCard({ song, queue, index }: SongCardProps) {
   const { playListId } = useSongsList();
   const { currentSong, isPlaying, playSong, togglePlay } = usePlayer();
@@ -37,7 +40,7 @@ export default function SongCard({ song, queue, index }: SongCardProps) {
       <div className="w-12 h-12 relative">
         <AudioImage id={song.coverImageId} src={song.coverUrl} alt={song.title} />
         <div className="absolute border p-2 rounded-lg inset-0 flex justify-center items-center group-hover:hidden">
-          {isCurrentSong && <Waves start={isPlaying} />}
+          {isCurrentSong && <Waves start={isPlaying} className={ACTIVE_COLOR} />}
         </div>
         <div className="absolute border p-2 rounded-lg inset-0 justify-center items-center hidden group-hover:flex">
           {isCurrentSong && isPlaying ? <Pause /> : <Play />}
@@ -47,7 +50,7 @@ export default function SongCard({ song, queue, index }: SongCardProps) {
       <div className="flex-1 min-w-0">
         <p
           className={`font-medium line-clamp-1 ${
-            isCurrentSong ? "text-emerald-300" : "text-foreground"
+            isCurrentSong ? ACTIVE_COLOR : "text-foreground"
           }`}
         >
           {song.title}
