@@ -44,8 +44,8 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 - [~] Find an existing library repo: reuse if marked, adopt if empty, create if missing, never touch other repos (logic and tests done; the "pick another name" prompt arrives with the Sync screen)
 - [ ] Recover missing shard repos by marker
 - [x] Create repos, read and write `index.json` with conflict retry
-- [ ] Add `sha256` and `parts` to tracks when syncing
-- [ ] Byte split, manifest, atomic commit upload
+- [x] Add `sha256` and `parts` to tracks when syncing (hash, parts and manifest are written at upload)
+- [x] Byte split, manifest, atomic commit upload, with size and hash checks on download
 - [ ] Persisted outbox with resume
 - [ ] Repo rollover at the size limit
 - [ ] Playlists sync and tombstones

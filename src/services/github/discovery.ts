@@ -10,7 +10,12 @@ import {
 } from "./indexTypes";
 
 export type Discovery =
-  | { status: "created" | "adopted" | "reused"; repo: string; index: LibraryIndex }
+  | {
+      status: "created" | "adopted" | "reused";
+      repo: string;
+      branch: string;
+      index: LibraryIndex;
+    }
   | { status: "name-taken"; repo: string };
 
 // Files an empty repository is allowed to have, such as an auto-made README.
@@ -72,13 +77,23 @@ export async function findOrCreateLibrary(
     await waitForHead(api, owner, repoName, created.default_branch, sleep);
     const index = createEmptyIndex(repoName, config);
     await writeIndex(api, owner, repoName, created.default_branch, index);
-    return { status: "created", repo: repoName, index };
+    return {
+      status: "created",
+      repo: repoName,
+      branch: created.default_branch,
+      index,
+    };
   }
 
   const existing = await api.getFile(owner, repoName, INDEX_PATH);
   if (existing) {
     try {
-      return { status: "reused", repo: repoName, index: parseIndex(existing.text) };
+      return {
+        status: "reused",
+        repo: repoName,
+        branch: repo.default_branch,
+        index: parseIndex(existing.text),
+      };
     } catch (error) {
       if (error instanceof NotLibraryIndexError) {
         return { status: "name-taken", repo: repoName };
@@ -93,5 +108,10 @@ export async function findOrCreateLibrary(
 
   const index = createEmptyIndex(repoName, config);
   await writeIndex(api, owner, repoName, repo.default_branch, index);
-  return { status: "adopted", repo: repoName, index };
+  return {
+    status: "adopted",
+    repo: repoName,
+    branch: repo.default_branch,
+    index,
+  };
 }
