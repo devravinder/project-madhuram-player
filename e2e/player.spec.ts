@@ -210,3 +210,30 @@ test("tapping a video shows fullscreen at the top right and hides again", async 
   // While it plays, the controls step aside after a few seconds.
   await expect(overlayShown(page)).toHaveCSS("opacity", "0", { timeout: 6000 });
 });
+
+test("playback speed is chosen in More options and kept for the next song", async ({ page }) => {
+  await tryWithoutLogin(page);
+  await importFiles(page, [
+    { name: "First Speed.wav", buffer: wavBuffer(20) },
+    { name: "Second Speed.wav", buffer: wavBuffer(20, 5) },
+  ]);
+  const player = await openPlayer(page, "First Speed");
+  const rate = () =>
+    page.evaluate(async () => {
+      const { mediaElement } = await import(/* @vite-ignore */ "/src/services/mediaElement.ts");
+      return mediaElement.playbackRate;
+    });
+
+  await player.getByRole("button", { name: "More options" }).click();
+  await page.getByRole("button", { name: /Speed/ }).click();
+  const speeds = page.getByRole("radiogroup", { name: "Playback speed" }).getByRole("radio");
+  await expect(speeds).toHaveText(["0.25", "0.5", "0.75", "1", "1.25", "1.5", "1.75", "2", "2.5", "3"]);
+  await page.getByRole("radio", { name: "1.5" }).click();
+  expect(await rate()).toBe(1.5);
+  await expect(page.getByRole("button", { name: /Speed/ })).toContainText("1.5×");
+
+  await page.keyboard.press("Escape");
+  await player.getByRole("region", { name: "Playback controls" }).getByRole("button", { name: "Next" }).click();
+  await expect(player).toHaveAccessibleName(/Second Speed/);
+  await expect.poll(rate).toBe(1.5);
+});

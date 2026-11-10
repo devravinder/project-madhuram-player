@@ -35,6 +35,8 @@ interface PlayerContextType {
   previous: () => void;
   seek: (time: number) => void;
   setVolume: (volume: number) => void;
+  speed: number; // playback rate, 1 is normal
+  setSpeed: (speed: number) => void;
   toggleRepeat: () => void;
   toggleShuffle: () => void;
   setSleepTimer: (minutes: number) => void;
@@ -62,6 +64,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolumeState] = useLocalStorage("volume", 0.7);
   const volumeRef = useRef(volume);
+  const [speed, setSpeedState] = useLocalStorage("playbackSpeed", 1);
+  const speedRef = useRef(speed);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [repeatMode, setRepeatMode] = useLocalStorage<RepeatMode>(
@@ -147,6 +151,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       // Shown for video until the first frame arrives.
       audio.poster = song.kind === "video" && coverUrl ? coverUrl : "";
       audio.src = audioUrl;
+      // A new source resets the speed to normal; keep the chosen one.
+      audio.defaultPlaybackRate = speedRef.current;
+      audio.playbackRate = speedRef.current;
       try {
         await audio.play();
       } catch (err) {
@@ -195,6 +202,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     mediaRef.current = mediaElement;
     mediaElement.volume = volumeRef.current;
+    mediaElement.defaultPlaybackRate = speedRef.current;
+    mediaElement.playbackRate = speedRef.current;
 
     const audio = mediaElement;
 
@@ -340,6 +349,16 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     [setVolumeState],
   );
 
+  const setSpeed = useCallback(
+    (newSpeed: number) => {
+      speedRef.current = newSpeed;
+      setSpeedState(newSpeed);
+      mediaElement.defaultPlaybackRate = newSpeed;
+      mediaElement.playbackRate = newSpeed;
+    },
+    [setSpeedState],
+  );
+
   const toggleRepeat = useCallback(() => {
     setRepeatMode((prev) => {
       if (prev === "off") return "all";
@@ -391,6 +410,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         previous,
         seek,
         setVolume,
+        speed,
+        setSpeed,
         toggleRepeat,
         toggleShuffle,
         setSleepTimer,

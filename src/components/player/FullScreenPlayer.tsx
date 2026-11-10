@@ -4,6 +4,7 @@ import { formatTime } from "@/services/timeUtil";
 import {
   ChevronDown,
   Ellipsis,
+  Gauge,
   Pause,
   Play,
   Repeat,
@@ -42,6 +43,52 @@ function PlayerButton({
   );
 }
 
+const SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3];
+
+// Playback speed, like a video site: the current value, and a grid to pick another.
+function SpeedPicker({ speed, setSpeed }: { speed: number; setSpeed: (speed: number) => void }) {
+  const [open, setOpen] = useState(false);
+  const label = speed === 1 ? "Normal" : `${speed}×`;
+
+  return (
+    <div className="flex flex-col gap-2">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className={`cursor-pointer flex items-center gap-2 p-2 rounded-lg hover:bg-white/10 ${
+          speed === 1 ? "" : "text-highlight"
+        }`}
+      >
+        <Gauge className="size-5" />
+        <span className="flex-1 text-left">Speed</span>
+        <span className="text-sm text-white/70">{label}</span>
+      </button>
+      {open && (
+        <div role="radiogroup" aria-label="Playback speed" className="grid grid-cols-5 gap-1">
+          {SPEEDS.map((value) => (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              aria-checked={value === speed}
+              onClick={() => {
+                setSpeed(value);
+                setOpen(false);
+              }}
+              className={`cursor-pointer py-1.5 rounded-md text-sm tabular-nums ${
+                value === speed ? "bg-highlight text-slate-900 font-semibold" : "bg-white/5 hover:bg-white/15"
+              }`}
+            >
+              {value}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Secondary controls, in a small panel above the "More options" button.
 function MoreControls(props: {
   onClose: VoidFunction;
@@ -53,6 +100,8 @@ function MoreControls(props: {
   toggleRepeat: VoidFunction;
   volume: number;
   setVolume: (volume: number) => void;
+  speed: number;
+  setSpeed: (speed: number) => void;
   sleepOn: boolean;
 }) {
   const [timer, setTimer] = useState(false);
@@ -97,6 +146,7 @@ function MoreControls(props: {
               </PlayerButton>
             </div>
             <VolumeSlider volume={props.volume} onVolumeChange={props.setVolume} />
+            <SpeedPicker speed={props.speed} setSpeed={props.setSpeed} />
             <button
               type="button"
               onClick={() => setTimer(true)}
@@ -132,6 +182,8 @@ export default function FullScreenPlayer({ onClose }: { onClose: VoidFunction })
     repeatMode,
     volume,
     setVolume,
+    speed,
+    setSpeed,
     sleepTimer,
     toggleRepeat,
     toggleShuffle,
@@ -203,7 +255,7 @@ export default function FullScreenPlayer({ onClose }: { onClose: VoidFunction })
       role="dialog"
       aria-modal="true"
       aria-label={`Now playing: ${song.title}`}
-      className="fixed inset-0 z-50 h-dvh flex flex-col overflow-hidden text-white bg-linear-to-b from-slate-800 to-slate-950 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] [--highlight:oklch(0.845_0.143_164.978)]"
+      className="fixed inset-0 z-50 h-dvh flex flex-col overflow-hidden text-white bg-linear-to-b from-slate-800 to-slate-950 pt-[env(safe-area-inset-top)] pb-[max(env(safe-area-inset-bottom),0.5rem)] [--highlight:oklch(0.845_0.143_164.978)]"
     >
       <div
         className={`mx-auto w-full h-full min-h-0 flex flex-col ${
@@ -277,7 +329,7 @@ export default function FullScreenPlayer({ onClose }: { onClose: VoidFunction })
                 >
                   <Ellipsis className="size-5" />
                   {/* A dot shows that a secondary mode is on. */}
-                  {(shuffle || repeatMode !== "off" || sleepTimer.isActive) && (
+                  {(shuffle || repeatMode !== "off" || sleepTimer.isActive || speed !== 1) && (
                     <span aria-hidden className="absolute top-1.5 right-1.5 size-2 rounded-full bg-highlight" />
                   )}
                 </PlayerButton>
@@ -292,6 +344,8 @@ export default function FullScreenPlayer({ onClose }: { onClose: VoidFunction })
                     toggleRepeat={toggleRepeat}
                     volume={volume}
                     setVolume={setVolume}
+                    speed={speed}
+                    setSpeed={setSpeed}
                     sleepOn={sleepTimer.isActive}
                   />
                 )}
