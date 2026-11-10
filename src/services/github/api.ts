@@ -1,24 +1,14 @@
+import {
+  retryInBackground,
+  type RetryOptions,
+  type Sleep,
+  type Visibility,
+} from "@/services/backgroundRetry";
 import { HttpError, NetworkError, RateLimitError } from "@/services/httpError";
-import { pageVisibility } from "@/services/pageVisibility";
 import { base64ToText, blobToBase64, textToBase64 } from "./base64";
 
 const API = "https://api.github.com";
 const DEFAULT_RETRY_SECONDS = 60;
-// While the app is in the background, a cut-off request is tried again
-// every few seconds (or as soon as the app is back), for up to 30 minutes.
-const BACKGROUND_RETRY_MS = 5_000;
-const BACKGROUND_MAX_MS = 30 * 60 * 1000;
-const BACKGROUND_MAX_ATTEMPTS = 400;
-const RETRIES_AFTER_BACK = 3;
-const AFTER_BACK_DELAY_MS = 1_000;
-
-type Sleep = (ms: number) => Promise<void>;
-const realSleep: Sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-export type Visibility = Pick<
-  typeof pageVisibility,
-  "isHidden" | "hiddenTimes" | "waitUntilVisible"
->;
 
 export type Repo = {
   name: string;
@@ -79,51 +69,30 @@ export const isConflict = (error: unknown) =>
 export class GithubApi {
   private readonly token: string;
   private readonly fetchFn: FetchFn;
-  private readonly visibility: Visibility;
-  private readonly sleep: Sleep;
+  private readonly retry: RetryOptions;
 
+  // `visibility` and `sleep` are for tests; the app uses the real page.
   constructor(
     token: string,
     fetchFn: FetchFn = (...args) => fetch(...args),
-    visibility: Visibility = pageVisibility,
-    sleep: Sleep = realSleep,
+    visibility?: Visibility,
+    sleep?: Sleep,
   ) {
     this.token = token;
     this.fetchFn = fetchFn;
-    this.visibility = visibility;
-    this.sleep = sleep;
+    this.retry = { visibility, sleep };
   }
 
-  private async request(path: string, options: Options = {}) {
-    const started = Date.now();
-    const hiddenAtStart = this.visibility.hiddenTimes();
-    let sawHidden = this.visibility.isHidden();
-    let retriesAfterBack = 0;
-    for (let attempt = 1; ; attempt++) {
-      try {
+  private request(path: string, options: Options = {}) {
+    return retryInBackground(
+      async () => {
         const response = await this.send(path, options);
         if (!response.ok) throw await toError(response);
         return response;
-      } catch (error) {
-        if (!(error instanceof NetworkError)) throw error;
-        // Cut off because the app went to the background: wait until it is
-        // back (trying again now and then while hidden), then carry on.
-        const hidden = this.visibility.isHidden();
-        sawHidden ||= hidden || this.visibility.hiddenTimes() !== hiddenAtStart;
-        const tooLong =
-          Date.now() - started > BACKGROUND_MAX_MS || attempt >= BACKGROUND_MAX_ATTEMPTS;
-        if (!sawHidden || tooLong) throw error;
-
-        if (hidden) {
-          await this.visibility.waitUntilVisible(BACKGROUND_RETRY_MS);
-        } else {
-          // Back in front: the network can take a moment to return.
-          if (retriesAfterBack >= RETRIES_AFTER_BACK) throw error;
-          retriesAfterBack++;
-          await this.sleep(AFTER_BACK_DELAY_MS * retriesAfterBack);
-        }
-      }
-    }
+      },
+      (error) => error instanceof NetworkError,
+      this.retry,
+    );
   }
 
   private async send(path: string, options: Options) {

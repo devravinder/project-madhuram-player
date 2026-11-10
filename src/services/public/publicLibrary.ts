@@ -1,3 +1,4 @@
+import { retryInBackground, type RetryOptions } from "@/services/backgroundRetry";
 import {
   NotLibraryIndexError,
   parseIndex,
@@ -50,19 +51,33 @@ export class PublicLibrary {
   readonly owner: string;
   readonly repo: string;
   private readonly fetchFn: typeof fetch;
+  private readonly retry: RetryOptions;
 
-  constructor(address: PublicAddress, fetchFn: typeof fetch = (...a) => fetch(...a)) {
+  // `retry` is for tests; the app uses the real page visibility.
+  constructor(
+    address: PublicAddress,
+    fetchFn: typeof fetch = (...a) => fetch(...a),
+    retry: RetryOptions = {},
+  ) {
     this.owner = address.owner;
     this.repo = address.repo;
     this.fetchFn = fetchFn;
+    this.retry = retry;
   }
 
-  private async get(url: string, init?: RequestInit) {
-    try {
-      return await this.fetchFn(url, init);
-    } catch {
-      throw new PublicLibraryError("offline", "Cannot reach GitHub. Check your connection.");
-    }
+  // A request cut off by switching apps is tried again once the app is back.
+  private get(url: string, init?: RequestInit) {
+    return retryInBackground(
+      async () => {
+        try {
+          return await this.fetchFn(url, init);
+        } catch {
+          throw new PublicLibraryError("offline", "Cannot reach GitHub. Check your connection.");
+        }
+      },
+      (error) => error instanceof PublicLibraryError && error.reason === "offline",
+      this.retry,
+    );
   }
 
   // Always asks GitHub whether the index changed, so removed tracks drop off.

@@ -87,6 +87,29 @@ describe("PublicLibrary", () => {
     expect(error.reason).toBe("offline");
   });
 
+  it("carries on with a download cut off by switching apps", async () => {
+    makePublic();
+    let hidden = true; // the user is in another app
+    let cut = 1;
+    const lib = new PublicLibrary(
+      { owner: fake.login, repo: NAME },
+      (input, init) => (cut-- > 0 ? Promise.reject(new TypeError("cut")) : fake.fetch(input, init)),
+      {
+        visibility: {
+          isHidden: () => hidden,
+          hiddenTimes: () => 1,
+          waitUntilVisible: async () => {
+            hidden = false; // and comes back
+          },
+        },
+        sleep: noSleep,
+      },
+    );
+
+    const manifest = await lib.loadManifest("manifests/large1.json");
+    expect(manifest.trackId).toBe("large1");
+  });
+
   it("gives a stream URL for an unsplit file and none for a split one", async () => {
     makePublic();
     const lib = visitor();

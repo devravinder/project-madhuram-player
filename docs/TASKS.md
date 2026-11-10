@@ -71,3 +71,4 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 - [x] Sync no longer gets a 404 for `index.json` right after creating the repo (API calls skip the browser cache)
 - [x] Delete a backed-up song everywhere, or from this device only (Download brings it back)
 - [x] Sync waits while the app is in the background instead of stopping as offline
+- [x] Public library downloads wait out the background too
