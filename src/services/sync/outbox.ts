@@ -19,6 +19,8 @@ export type RunResult = {
 export type RunOptions = {
   now?: () => number;
   isCancelled?: () => boolean;
+  // Only steps this accepts are run; others stay queued.
+  filter?: (item: OutboxItem) => boolean;
   onProgress?: (item: OutboxItem) => void;
 };
 
@@ -88,7 +90,9 @@ export const outbox = {
         return result;
       }
 
-      const pending = (await db.outbox.where("status").equals("pending").sortBy("createdAt"));
+      const pending = (
+        await db.outbox.where("status").equals("pending").sortBy("createdAt")
+      ).filter((item) => options.filter?.(item) ?? true);
       const due = pending.find((item) => item.nextAttemptAt <= now());
       if (!due) {
         if (pending.length > 0) {

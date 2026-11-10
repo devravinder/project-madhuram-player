@@ -1,4 +1,5 @@
 import db from "@/services/db";
+import type { OutboxOp } from "@/types/music";
 import type { Manifest } from "@/services/github/indexTypes";
 import { LibraryRepo } from "@/services/github/library";
 import {
@@ -16,6 +17,12 @@ import {
 import { planSync } from "./planner";
 import { uploadTrack, type UploadOptions } from "./upload";
 
+// Upload only sends new and changed tracks; download only brings them in.
+export type SyncMode = "both" | "upload" | "download";
+
+const allows = (mode: SyncMode, op: OutboxOp) =>
+  mode === "both" || (mode === "upload" ? op === "push" : op === "pull");
+
 export type SyncContext = {
   library: LibraryRepo;
   device: StorageProvider;
@@ -23,13 +30,17 @@ export type SyncContext = {
 };
 
 // Works out what differs and queues it; steps already queued are not repeated.
-export async function queueSync(ctx: SyncContext): Promise<number> {
+export async function queueSync(
+  ctx: SyncContext,
+  mode: SyncMode = "both",
+): Promise<number> {
   const [{ index }, local, records] = await Promise.all([
     ctx.library.read(),
     ctx.device.listTracks(),
     db.syncState.toArray(),
   ]);
-  return outbox.enqueue(planSync(local, index.tracks, records));
+  const steps = planSync(local, index.tracks, records);
+  return outbox.enqueue(steps.filter((step) => allows(mode, step.op)));
 }
 
 async function push(ctx: SyncContext, trackId: string) {
@@ -110,12 +121,13 @@ export function createHandler(ctx: SyncContext): OutboxHandler {
 export async function syncNow(
   ctx: SyncContext,
   options: RunOptions = {},
+  mode: SyncMode = "both",
 ): Promise<RunResult & { queued: number }> {
   await outbox.resetInterrupted();
 
   let queued: number;
   try {
-    queued = await queueSync(ctx);
+    queued = await queueSync(ctx, mode);
   } catch (error) {
     // Offline or limited while reading the library: report it, do not throw.
     const stop = stopReasonOf(error);
@@ -123,6 +135,9 @@ export async function syncNow(
     return { done: 0, failed: 0, queued: 0, stoppedBy: stop.reason, waitMs: stop.waitMs };
   }
 
-  const result = await outbox.run(createHandler(ctx), options);
+  const result = await outbox.run(createHandler(ctx), {
+    ...options,
+    filter: (item) => allows(mode, item.op),
+  });
   return { ...result, queued };
 }

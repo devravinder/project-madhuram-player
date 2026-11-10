@@ -9,7 +9,7 @@ import { FakeGithub } from "@/testing/fakeGithub";
 import { makeFile, randomBytes } from "@/testing/files";
 import { beforeEach, describe, expect, it } from "vitest";
 import { outbox } from "./outbox";
-import { syncNow, type SyncContext } from "./engine";
+import { syncNow, type SyncContext, type SyncMode } from "./engine";
 
 const NAME = "project-music-files";
 const PART = 100;
@@ -50,7 +50,7 @@ const restore = async (s: Awaited<ReturnType<typeof snapshot>>) => {
 };
 
 const remoteIndex = () => parseIndex(fake.fileText(NAME, "index.json")!);
-const sync = (options = {}) => syncNow(ctx, options);
+const sync = (options = {}, mode: SyncMode = "both") => syncNow(ctx, options, mode);
 
 beforeEach(async () => {
   offline = false;
@@ -208,6 +208,43 @@ describe("syncNow", () => {
 
     expect(await db.songs.count()).toBe(0);
     expect((await outbox.list())[0]).toMatchObject({ status: "failed" });
+  });
+
+  it("upload only sends new tracks and leaves everything else queued for later", async () => {
+    await addLocal("here", 40);
+    await sync(); // here -> remote
+    const deviceA = await snapshot();
+
+    await wipeDevice();
+    await sync(); // device B pulls "here"
+    await addLocal("only-b", 40, 3);
+    await sync(); // pushes "only-b"
+    await restore(deviceA); // device A again: has "here", lacks "only-b"
+    await addLocal("only-a", 40, 4);
+
+    const result = await sync({}, "upload");
+
+    expect(result.done).toBe(1); // only-a was pushed
+    expect((await deviceProvider.listTracks()).map((t) => t.id).sort()).toEqual(["here", "only-a"]);
+    expect(remoteIndex().tracks.map((t) => t.id).sort()).toEqual(["here", "only-a", "only-b"]);
+  });
+
+  it("download only brings tracks in and sends nothing", async () => {
+    await addLocal("a", 40);
+    await sync();
+    const deviceA = await snapshot();
+
+    await wipeDevice();
+    await addLocal("local-only", 40, 9);
+    await sync(); // pulls "a", pushes "local-only"
+    await restore(deviceA);
+    const writesBefore = fake.requests.filter((r) => r.startsWith("POST")).length;
+
+    const result = await sync({}, "download");
+
+    expect(result.done).toBe(1); // pulled "local-only"
+    expect(fake.requests.filter((r) => r.startsWith("POST")).length).toBe(writesBefore);
+    expect((await deviceProvider.listTracks()).map((t) => t.id).sort()).toEqual(["a", "local-only"]);
   });
 
   it("skips a push if the track was deleted while queued", async () => {
