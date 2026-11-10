@@ -33,7 +33,7 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 
 - [x] Add `kind`, `mime` and `bytes` to the song model, rename `audioId` to `mediaId`, with a Dexie migration
 - [ ] Video player: inline, full screen, Picture-in-Picture
-- [ ] Poster thumbnail and duration for video at import
+- [x] Import video files (MP4, WEBM, MOV, MKV) with poster frame and duration
 
 ## Phase 4 — GitHub storage
 

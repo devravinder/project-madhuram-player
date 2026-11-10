@@ -1,42 +1,15 @@
-import { addSong } from "@/services/songsService";
-import type { Song } from "@/types/music";
 import { Import } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
-import { parseBlob, type IPicture } from "music-metadata";
 import { useNavigate } from "@tanstack/react-router";
-import { saveFile } from "@/services/filesService";
-import { UNKNOWN } from "@/constants";
+import { importMediaFile } from "@/services/importService";
 import {
-  AUDIO_ACCEPT,
-  AUDIO_FORMATS_LABEL,
   canPlayInBrowser,
-  isAudioFile,
-  withAudioType,
+  MEDIA_ACCEPT,
+  MEDIA_FORMATS_LABEL,
+  mediaKindOf,
+  withMediaType,
 } from "@/services/mediaTypes";
 import { toast } from "sonner";
-
-function pictureToFile(picture: IPicture) {
-  const blob = new Blob([picture.data as unknown as ArrayBuffer], {
-    type: picture.format
-  });
-
-  const ext = picture.format.split("/")[1]; // jpeg / png
-  const fileName = `cover.${ext}`;
-
-  return new File([blob], fileName, {
-    type: picture.format
-  });
-}
-
-// Tags are optional; a file with unreadable tags still imports.
-async function readMetadata(file: File) {
-  try {
-    return await parseBlob(file);
-  } catch {
-    return undefined;
-  }
-}
-
 export function UploadModal() {
   const navigate = useNavigate();
   const [isDragging, setIsDragging] = useState(false);
@@ -56,58 +29,23 @@ export function UploadModal() {
     return () => input.removeEventListener("cancel", handleCancel);
   }, []);
 
-  const uploadFile = async (original: File) => {
-    const file = withAudioType(original);
-    const audioFile = await saveFile(file)
-
-    const metadata = await readMetadata(file);
-
-    const title =
-      metadata?.common.title || file.name.replace(/\.[^/.]+$/, "") || "uploaded";
-
-    const artist = metadata?.common.artist || UNKNOWN;
-    const album = metadata?.common.album || UNKNOWN;
-
-    let coverImageId = undefined;
-
-    if(metadata?.common.picture?.[0]){
-      const converPic = pictureToFile(metadata.common.picture[0])
-      const imageFile = await saveFile(converPic)
-      coverImageId = imageFile.id
-    }
-
-    const duration = Math.floor(metadata?.format.duration || 0);
-
-    const song: Omit<Song, "id"> = {
-      title,
-      artist,
-      album,
-      duration, // in seconds
-      kind: "audio",
-      mediaId: audioFile.id,
-      mime: file.type,
-      bytes: file.size,
-      coverImageId,
-      addedAt: new Date(),
-    };
-
-    await addSong(song);
-  };
-
   const uploadFiles = async (files: FileList | File[]) => {
     const all = Array.from(files);
-    const audio = all.filter(isAudioFile);
-    const skipped = all.filter((file) => !isAudioFile(file));
+    const media = all.filter((file) => mediaKindOf(file));
+    const skipped = all.filter((file) => !mediaKindOf(file));
     if (skipped.length > 0) {
-      toast.error(`Skipped (not audio): ${skipped.map((f) => f.name).join(", ")}`);
+      toast.error(
+        `Skipped (not audio or video): ${skipped.map((f) => f.name).join(", ")}`,
+      );
     }
 
     let imported = 0;
-    for (const file of audio) {
+    for (const file of media) {
+      const kind = mediaKindOf(file)!;
       try {
-        await uploadFile(file);
+        await importMediaFile(file, kind);
         imported++;
-        if (!canPlayInBrowser(withAudioType(file))) {
+        if (!canPlayInBrowser(withMediaType(file), kind)) {
           toast.warning(`${file.name} may not play in this browser`);
         }
       } catch (error) {
@@ -121,7 +59,6 @@ export function UploadModal() {
       navigate({ to: "/library" });
     }
   };
-
   const onChange = async (files: FileList | null) => {
     if (!files || !files.item(0)) return;
 
@@ -153,7 +90,7 @@ export function UploadModal() {
     <div className="flex justify-center items-center">
       <div className="flex flex-col gap-4 p-4 justify-center">
         <div className="flex items-center justify-center">
-          <h2 className="text-xl font-bold">Import Music</h2>
+          <h2 className="text-xl font-bold">Import Music and Videos</h2>
         </div>
 
         <div
@@ -169,9 +106,9 @@ export function UploadModal() {
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-secondary flex items-center justify-center">
             <Import size={32} className="text-muted-foreground" />
           </div>
-          <p className="font-medium mb-2">Drag & drop audio files here</p>
+          <p className="font-medium mb-2">Drag & drop audio or video files here</p>
           <p className="text-sm text-muted-foreground mb-4">
-            Supports {AUDIO_FORMATS_LABEL}
+            Supports {MEDIA_FORMATS_LABEL}
           </p>
           <button
             onClick={openFiles}
@@ -181,7 +118,7 @@ export function UploadModal() {
             <input
               ref={fileInputRef}
               type="file"
-              accept={AUDIO_ACCEPT}
+              accept={MEDIA_ACCEPT}
               className="hidden"
               multiple={true}
               onChange={(e) => {
@@ -193,7 +130,7 @@ export function UploadModal() {
           </button>
         </div>
         <p className="text-xs text-center text-muted-foreground">
-          Note: upload only audio files
+          Note: upload only audio or video files
         </p>
       </div>
     </div>
