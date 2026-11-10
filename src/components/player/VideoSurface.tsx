@@ -1,4 +1,5 @@
 import { usePlayer } from "@/context/PlayerContext";
+import { parkMediaElement } from "@/services/mediaElement";
 import { useEffect, type RefObject } from "react";
 import { toast } from "sonner";
 
@@ -29,7 +30,8 @@ export function VideoSurface({
     return () => {
       document.removeEventListener("fullscreenchange", syncControls);
       mediaElement.controls = false;
-      if (mediaElement.parentElement === host) host.removeChild(mediaElement);
+      // Moved, never removed: leaving the page would pause it.
+      if (mediaElement.parentElement === host) parkMediaElement();
     };
   }, [mediaElement, hostRef]);
 
