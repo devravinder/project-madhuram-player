@@ -43,7 +43,7 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 - [~] Remove token action: clears the token and keeps local data, with a link to revoke on GitHub (outbox stop comes with the outbox)
 - [~] Find an existing library repo: reuse if marked, adopt if empty, create if missing, never touch other repos (logic and tests done; the "pick another name" prompt arrives with the Sync screen)
 - [ ] Recover missing shard repos by marker
-- [ ] Create repos, read and write `index.json` with conflict retry
+- [x] Create repos, read and write `index.json` with conflict retry
 - [ ] Add `sha256` and `parts` to tracks when syncing
 - [ ] Byte split, manifest, atomic commit upload
 - [ ] Persisted outbox with resume

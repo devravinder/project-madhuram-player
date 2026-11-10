@@ -166,9 +166,11 @@ export class GithubApi {
     owner: string,
     repo: string,
     path: string,
+    ref?: string,
   ): Promise<RepoFile | null> {
+    const query = ref ? `?ref=${encodeURIComponent(ref)}` : "";
     const response = await this.requestOrNull(
-      `/repos/${owner}/${repo}/contents/${encodePath(path)}`,
+      `/repos/${owner}/${repo}/contents/${encodePath(path)}${query}`,
       [404],
     );
     if (!response) return null;

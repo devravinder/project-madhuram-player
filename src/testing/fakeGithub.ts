@@ -162,7 +162,7 @@ export class FakeGithub {
       await this.commitTo(repo, { [file]: base64ToBytes(body.content) }, body.message);
       return json({ content: { path: file } }, 201);
     }    if (method === "GET" && rest.startsWith("/contents/")) {
-      return this.contents(repo, decodeURIComponent(rest.slice(10)));
+      return this.contents(repo, decodeURIComponent(rest.slice(10)), url.searchParams.get("ref"));
     }
     if (method === "GET" && rest.startsWith("/git/trees/")) {
       return this.rootTree(repo, decodeURIComponent(rest.slice(11)));
@@ -218,9 +218,11 @@ export class FakeGithub {
     return json(this.repoJson(repo), 201);
   }
 
-  private contents(repo: FakeRepo, path: string) {
+  private contents(repo: FakeRepo, path: string, ref: string | null) {
     if (!repo.branches.size) return failure(404, "This repository is empty.");
-    const snapshot = this.headSnapshot(repo);
+    const commit = ref ? repo.commits.get(ref) : undefined;
+    if (ref && !commit) return failure(404, "No commit found for the ref");
+    const snapshot = commit ? repo.trees.get(commit.tree)! : this.headSnapshot(repo);
     const sha = snapshot[path];
     if (!sha) return failure(404, "Not Found");
 
