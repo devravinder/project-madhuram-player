@@ -48,10 +48,10 @@ export function ProgressBar({ progress, duration, onSeek, className = "" }: Prog
     >
       <div className="h-1 bg-muted rounded-full relative group-focus-visible:ring-2 group-focus-visible:ring-primary">
         <div
-          className="h-full bg-primary rounded-full transition-all duration-100 relative"
+          className="h-full bg-highlight rounded-full transition-all duration-100 relative"
           style={{ width: `${percentage}%` }}
         >
-          <div className="w-3 h-3 bg-primary rounded-full shadow-lg opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity duration-200 absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2" />
+          <div className="w-3 h-3 bg-highlight rounded-full shadow-lg opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity duration-200 absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2" />
         </div>
       </div>
     </div>

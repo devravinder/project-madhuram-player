@@ -15,8 +15,8 @@ interface SongCardProps {
   index: number;
 }
 
-// The playing song's title and waves share one accent color.
-const ACTIVE_COLOR = "text-emerald-300";
+// The playing song's title and waves share the app's one accent color.
+const ACTIVE_COLOR = "text-highlight";
 
 export default function SongCard({ song, queue, index }: SongCardProps) {
   const { playListId } = useSongsList();

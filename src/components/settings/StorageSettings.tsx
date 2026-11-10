@@ -29,7 +29,7 @@ function Meter({ used, total, label }: { used: number; total: number; label: str
         className="h-2 rounded-full bg-muted overflow-hidden"
       >
         <div
-          className={`h-full ${percent >= 90 ? "bg-destructive" : "bg-primary"}`}
+          className={`h-full ${percent >= 90 ? "bg-destructive" : "bg-highlight"}`}
           style={{ width: `${percent}%` }}
         />
       </div>

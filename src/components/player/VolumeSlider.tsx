@@ -42,10 +42,10 @@ export function VolumeSlider({ volume, onVolumeChange }: VolumeSliderProps) {
         onClick={handleClick}
       >
         <div
-          className="h-full bg-foreground rounded-full relative transition-all"
+          className="h-full bg-highlight rounded-full relative transition-all"
           style={{ width: `${volume * 100}%` }}
         >
-          <div className="w-3 h-3 bg-primary rounded-full shadow-lg cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity duration-200 absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2" />
+          <div className="w-3 h-3 bg-highlight rounded-full shadow-lg cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity duration-200 absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2" />
         </div>
       </div>
     </div>

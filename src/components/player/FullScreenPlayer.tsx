@@ -40,7 +40,7 @@ function PlayerButton({
       aria-label={label}
       title={label}
       className={`cursor-pointer shrink-0 grid place-items-center rounded-full size-10 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-primary transition-colors ${
-        active === undefined ? "" : active ? "text-primary" : "text-white/60"
+        active === undefined ? "" : active ? "text-highlight" : "text-white/60"
       } ${className}`}
       {...props}
     />
@@ -123,7 +123,7 @@ function MoreControls(props: {
               type="button"
               onClick={() => setTimer(true)}
               className={`cursor-pointer flex items-center gap-2 p-2 rounded-lg hover:bg-white/10 ${
-                props.sleepOn ? "text-primary" : ""
+                props.sleepOn ? "text-highlight" : ""
               }`}
             >
               <Timer className="size-5" />
@@ -199,12 +199,13 @@ export default function FullScreenPlayer({ onClose }: { onClose: VoidFunction })
     );
   }
 
+  // The open player is always dark, so it keeps the light green accent.
   return (
     <div
       role="dialog"
       aria-modal="true"
       aria-label={`Now playing: ${song.title}`}
-      className="fixed inset-0 z-50 h-dvh flex flex-col overflow-hidden text-white bg-linear-to-b from-slate-800 to-slate-950 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
+      className="fixed inset-0 z-50 h-dvh flex flex-col overflow-hidden text-white bg-linear-to-b from-slate-800 to-slate-950 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] [--highlight:oklch(0.845_0.143_164.978)]"
     >
       <div
         className={`mx-auto w-full h-full min-h-0 flex flex-col ${
@@ -289,7 +290,7 @@ export default function FullScreenPlayer({ onClose }: { onClose: VoidFunction })
                   <Ellipsis className="size-5" />
                   {/* A dot shows that a secondary mode is on. */}
                   {(shuffle || repeatMode !== "off" || sleepTimer.isActive) && (
-                    <span aria-hidden className="absolute top-1.5 right-1.5 size-2 rounded-full bg-primary" />
+                    <span aria-hidden className="absolute top-1.5 right-1.5 size-2 rounded-full bg-highlight" />
                   )}
                 </PlayerButton>
                 {showMenu && (

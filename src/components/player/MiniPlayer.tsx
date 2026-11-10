@@ -17,7 +17,7 @@ export default function MiniPlayer({ onClick }: { onClick?: VoidFunction }) {
     <div className="shrink-0 glass relative">
       {/* Progress only; seeking happens in the full player. */}
       <div aria-hidden className="absolute top-0 inset-x-0 h-0.5 bg-muted">
-        <div className="h-full bg-primary" style={{ width: `${percentage}%` }} />
+        <div className="h-full bg-highlight" style={{ width: `${percentage}%` }} />
       </div>
       <div className="flex items-center gap-2 px-3 py-2">
         <button
