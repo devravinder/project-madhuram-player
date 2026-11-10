@@ -46,7 +46,7 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 - [x] Create repos, read and write `index.json` with conflict retry
 - [x] Add `sha256` and `parts` to tracks when syncing (hash, parts and manifest are written at upload)
 - [x] Byte split, manifest, atomic commit upload, with size and hash checks on download
-- [ ] Persisted outbox with resume
+- [x] Persisted outbox with resume (retry with backoff, rate-limit hold, offline stop)
 - [x] Repo rollover at the size limit (a large file can span repos; leftover space is reused)
 - [ ] Playlists sync and tombstones
 - [ ] Sync screen: push local, pull remote

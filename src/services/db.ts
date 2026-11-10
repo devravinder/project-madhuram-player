@@ -1,17 +1,27 @@
 import { Dexie, type EntityTable } from "dexie";
-import type { AppFile, Playlist, Song } from "@/types/music";
+import type {
+  AppFile,
+  OutboxItem,
+  Playlist,
+  Song,
+  SyncRecord,
+} from "@/types/music";
 import { DB_NAME } from "@/constants";
 
 export const COLLECTIONS = {
   PLAYLIST_COLLECTION: "playlists",
   SONGS_COLLECTION: "songs",
   FILES_COLLECTION: "files",
+  OUTBOX_COLLECTION: "outbox",
+  SYNC_STATE_COLLECTION: "syncState",
 } as const;
 
 class AppDB extends Dexie {
   [COLLECTIONS.SONGS_COLLECTION]!: EntityTable<Song, "id">;
   [COLLECTIONS.PLAYLIST_COLLECTION]!: EntityTable<Playlist, "id">;
   [COLLECTIONS.FILES_COLLECTION]!: EntityTable<AppFile, "id">;
+  [COLLECTIONS.OUTBOX_COLLECTION]!: EntityTable<OutboxItem, "id">;
+  [COLLECTIONS.SYNC_STATE_COLLECTION]!: EntityTable<SyncRecord, "trackId">;
 
   constructor() {
     super(DB_NAME);
@@ -79,6 +89,12 @@ class AppDB extends Dexie {
           });
         }
       });
+
+    // Queue of sync steps, and what was last synced per track.
+    this.version(8).stores({
+      [COLLECTIONS.OUTBOX_COLLECTION]: "id,status,createdAt",
+      [COLLECTIONS.SYNC_STATE_COLLECTION]: "trackId",
+    });
   }
 }
 

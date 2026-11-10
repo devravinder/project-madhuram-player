@@ -58,3 +58,23 @@ export type AppFile = {
   data: File;
   createdAt: Date;
 };
+
+export type OutboxOp = "push" | "pull" | "delete-remote" | "delete-local";
+
+// One queued sync step; the key makes queuing the same step twice a no-op.
+export type OutboxItem = {
+  id: string; // `${op}:${trackId}`
+  op: OutboxOp;
+  trackId: string;
+  status: "pending" | "running" | "failed";
+  attempts: number;
+  lastError?: string;
+  nextAttemptAt: number;
+  createdAt: number;
+};
+
+// What the device and the library agreed on at the last successful sync.
+export type SyncRecord = {
+  trackId: string;
+  sha256: string;
+};
