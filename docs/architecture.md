@@ -95,8 +95,9 @@ Limits (50 MB per file, 800 MB per repo) are config values stored in the index.
 
 ## Upload
 
-Files above the part size are cut into raw byte parts. Parts, manifest and index change
-land in one commit through the Git Data API, so a failed upload leaves no orphans.
+Files above the part size are cut into raw byte parts. Within one repository, parts, manifest and index change land in one commit through the Git Data API. When the parts go to a
+shard repository, they are committed there first and the manifest and index follow in the
+primary repository. A failure in between leaves only unreferenced parts, which a retry reuses.
 
 ```mermaid
 sequenceDiagram
