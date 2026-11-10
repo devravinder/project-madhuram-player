@@ -29,6 +29,16 @@ describe("planSync", () => {
     expect(planSync([local("a", "h")], [], [])).toEqual([{ op: "push", trackId: "a" }]);
   });
 
+  it("leaves a new local track alone when new uploads are off", () => {
+    expect(planSync([local("a", "h")], [], [], { pushNew: false })).toEqual([]);
+  });
+
+  it("still sends an edit of a backed-up track when new uploads are off", () => {
+    expect(
+      planSync([local("a", "new")], [remote("a", "old")], [record("a", "old")], { pushNew: false }),
+    ).toEqual([{ op: "push", trackId: "a" }]);
+  });
+
   it("pulls a new remote track", () => {
     expect(planSync([], [remote("a", "h")], [])).toEqual([{ op: "pull", trackId: "a" }]);
   });

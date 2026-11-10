@@ -9,14 +9,17 @@ import type { LibraryRepo } from "@/services/github/library";
 import { LibraryNameTakenError, openLibrary } from "@/services/github/session";
 import { HttpError } from "@/services/httpError";
 import {
-  getLastSyncMode,
   getLibraryRepoName,
   isValidRepoName,
-  setLastSyncMode,
   setLibraryRepoName,
 } from "@/services/settingsStore";
 import { deviceProvider } from "@/services/storage/deviceProvider";
-import { syncNow, type SyncMode } from "@/services/sync/engine";
+import {
+  resumeQueued,
+  syncNow,
+  uploadTracks,
+  type SyncMode,
+} from "@/services/sync/engine";
 import {
   deleteEverywhere as deleteTrackEverywhere,
   type DeleteResult,
@@ -58,6 +61,17 @@ export type LastRun = {
 
 export type RepoUsage = { repos: RepoInfo[]; maxRepoBytes: number };
 
+// What one run does: a sync in a mode, an upload of chosen tracks, or
+// finishing steps already queued (never planning new uploads).
+type SyncJob =
+  | { kind: "sync"; mode: SyncMode }
+  | { kind: "upload"; trackIds: string[] }
+  | { kind: "resume" };
+
+// Stops that end by themselves; the job carries on afterwards.
+const isPause = (reason: StopReason | undefined) =>
+  reason === "offline" || reason === "rate-limit";
+
 type SyncContextValue = {
   usage?: RepoUsage;
   resumeAt?: number; // when a paused sync carries on by itself
@@ -69,6 +83,7 @@ type SyncContextValue = {
   waiting: number;
   failedItems: OutboxItem[];
   sync: (mode?: SyncMode) => Promise<void>;
+  upload: (trackIds: string[]) => Promise<void>; // just these tracks
   cancel: () => void;
   retryFailed: () => Promise<void>;
   changeRepoName: (name: string) => boolean;
@@ -100,7 +115,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const [usage, setUsage] = useState<RepoUsage>();
   const [resumeAt, setResumeAt] = useState<number>();
   const resumeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const syncRef = useRef<(mode?: SyncMode) => Promise<void>>(undefined);
+  const syncRef = useRef<(job: SyncJob) => Promise<void>>(undefined);
 
   const clearResume = useCallback(() => {
     clearTimeout(resumeTimer.current);
@@ -108,9 +123,10 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     setResumeAt(undefined);
   }, []);
 
-  // Rate limits and retry backoff end on their own; carry on then.
+  // Rate limits and retry backoff end on their own; carry on then with
+  // the job that was interrupted (what the user asked for, nothing more).
   const scheduleResume = useCallback(
-    (result: Pick<RunResult, "stoppedBy" | "waitMs">, mode: SyncMode) => {
+    (result: Pick<RunResult, "stoppedBy" | "waitMs">, job: SyncJob) => {
       const { waitMs, stoppedBy } = result;
       const resumes =
         waitMs !== undefined &&
@@ -120,13 +136,14 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         stoppedBy !== "auth";
       if (!resumes) return;
       setResumeAt(Date.now() + waitMs);
-      resumeTimer.current = setTimeout(() => void syncRef.current?.(mode), waitMs + 250);
+      resumeTimer.current = setTimeout(() => void syncRef.current?.(job), waitMs + 250);
     },
     [],
   );
 
   const running = useRef(false);
-  const lastMode = useRef<SyncMode>(getLastSyncMode());
+  // The job a rate limit or lost connection stopped, to carry on with later.
+  const interrupted = useRef<SyncJob>(undefined);
   const resumedOnOpen = useRef(false);
   const cancelled = useRef(false);
   const opened = useRef<{ key: string; library: LibraryRepo }>(undefined);
@@ -165,11 +182,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     return library;
   }, [token, user, repoName]);
 
-  const sync = useCallback(
-    async (mode: SyncMode = "both") => {
+  const runJob = useCallback(
+    async (job: SyncJob) => {
       if (!signedIn || running.current) return;
-      lastMode.current = mode;
-      setLastSyncMode(mode);
       clearResume();
       running.current = true;
       cancelled.current = false;
@@ -180,12 +195,15 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       try {
         const library = await getLibrary();
         setPhase("syncing");
-        const result = await syncNow(
-          { library, device: deviceProvider },
-          { isCancelled: () => cancelled.current },
-          mode,
-        );
-        if (mode === "both" && !result.stoppedBy) {
+        const ctx = { library, device: deviceProvider };
+        const options = { isCancelled: () => cancelled.current };
+        const result =
+          job.kind === "sync"
+            ? await syncNow(ctx, options, job.mode)
+            : job.kind === "upload"
+              ? await uploadTracks(ctx, job.trackIds, options)
+              : await resumeQueued(ctx, options);
+        if (job.kind === "sync" && job.mode === "both" && !result.stoppedBy) {
           await syncPlaylists(library);
           await syncSources(library);
         }
@@ -202,7 +220,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           failed: result.failed,
           stoppedBy: result.stoppedBy,
         });
-        scheduleResume(result, mode);
+        interrupted.current = isPause(result.stoppedBy) ? job : undefined;
+        scheduleResume(result, job);
       } catch (problem) {
         // Offline, rate limit or a rejected token can also hit while
         // connecting or syncing playlists; they pause like queued steps do.
@@ -210,8 +229,10 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         if (stop) {
           const paused = { done: 0, failed: 0, stoppedBy: stop.reason, waitMs: stop.waitMs };
           setLast({ at: Date.now(), queued: 0, ...paused });
-          scheduleResume(paused, mode);
+          interrupted.current = isPause(stop.reason) ? job : undefined;
+          scheduleResume(paused, job);
         } else {
+          interrupted.current = undefined;
           report(problem);
         }
       } finally {
@@ -223,8 +244,21 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
-    syncRef.current = sync;
-  }, [sync]);
+    syncRef.current = runJob;
+  }, [runJob]);
+
+  const sync = useCallback(
+    (mode: SyncMode = "both") => runJob({ kind: "sync", mode }),
+    [runJob],
+  );
+  const upload = useCallback(
+    (trackIds: string[]) => runJob({ kind: "upload", trackIds }),
+    [runJob],
+  );
+  const resume = useCallback(
+    () => runJob(interrupted.current ?? { kind: "resume" }),
+    [runJob],
+  );
 
   const cancel = useCallback(() => {
     cancelled.current = true;
@@ -233,8 +267,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
   const retryFailed = useCallback(async () => {
     await outbox.retryFailed();
-    await sync();
-  }, [sync]);
+    await resume();
+  }, [resume]);
 
   const changeRepoName = useCallback((name: string) => {
     const trimmed = name.trim();
@@ -282,16 +316,17 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => () => clearTimeout(resumeTimer.current), []);
 
-  // Waiting steps carry on once the connection is back.
+  // Waiting steps carry on once the connection is back; nothing new is
+  // planned, so no file is uploaded unless the user asked for it.
   useEffect(() => {
     if (!signedIn) return;
-    const resume = () => void sync();
-    window.addEventListener("online", resume);
-    return () => window.removeEventListener("online", resume);
-  }, [signedIn, sync]);
+    const onOnline = () => void resume();
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+  }, [signedIn, resume]);
 
-  // A sync the app was closed in the middle of carries on when it opens
-  // again, in the same mode. Failed steps wait for "Retry".
+  // Steps the app was closed in the middle of carry on when it opens
+  // again. Failed steps wait for "Retry".
   useEffect(() => {
     if (!signedIn || resumedOnOpen.current) return;
     resumedOnOpen.current = true;
@@ -300,22 +335,20 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         .where("status")
         .anyOf("pending", "running")
         .count();
-      if (unfinished > 0) await syncRef.current?.(lastMode.current);
+      if (unfinished > 0) await syncRef.current?.({ kind: "resume" });
     })();
   }, [signedIn]);
 
-  // A sync cut off while the app was in the background carries on
-  // when the user comes back to it.
+  // Steps cut off while the app was in the background carry on when the
+  // user comes back to it.
   useEffect(() => {
     if (!signedIn || last?.stoppedBy !== "offline") return;
     const onVisible = () => {
-      if (document.visibilityState === "visible" && navigator.onLine) {
-        void sync(lastMode.current);
-      }
+      if (document.visibilityState === "visible" && navigator.onLine) void resume();
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [signedIn, last, sync]);
+  }, [signedIn, last, resume]);
 
   return (
     <SyncContext.Provider
@@ -330,6 +363,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         waiting,
         failedItems,
         sync,
+        upload,
         cancel,
         retryFailed,
         changeRepoName,

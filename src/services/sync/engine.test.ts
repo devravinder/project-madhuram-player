@@ -9,7 +9,7 @@ import { FakeGithub } from "@/testing/fakeGithub";
 import { makeFile, randomBytes } from "@/testing/files";
 import { beforeEach, describe, expect, it } from "vitest";
 import { outbox } from "./outbox";
-import { syncNow, type SyncContext, type SyncMode } from "./engine";
+import { resumeQueued, syncNow, uploadTracks, type SyncContext, type SyncMode } from "./engine";
 
 const NAME = "project-music-files";
 const PART = 100;
@@ -51,6 +51,8 @@ const restore = async (s: Awaited<ReturnType<typeof snapshot>>) => {
 
 const remoteIndex = () => parseIndex(fake.fileText(NAME, "index.json")!);
 const sync = (options = {}, mode: SyncMode = "both") => syncNow(ctx, options, mode);
+// New tracks go to GitHub only when the user uploads them.
+const upload = (options = {}) => sync(options, "upload");
 
 beforeEach(async () => {
   offline = false;
@@ -76,11 +78,11 @@ beforeEach(async () => {
 });
 
 describe("syncNow", () => {
-  it("pushes new local tracks, including a large one with a cover", async () => {
+  it("uploads new local tracks, including a large one with a cover", async () => {
     await addLocal("aa1", 60);
     await addLocal("bb2", 250, 2, true);
 
-    const result = await sync();
+    const result = await upload();
 
     expect(result).toMatchObject({ queued: 2, done: 2, failed: 0 });
     expect(remoteIndex().tracks.map((t) => t.id).sort()).toEqual(["aa1", "bb2"]);
@@ -93,7 +95,7 @@ describe("syncNow", () => {
     await addLocal("aa1", 60);
     await addLocal("bb2", 250, 2, true);
     const original = await deviceProvider.readTrackFiles("bb2");
-    await sync();
+    await upload();
 
     await wipeDevice();
     const result = await sync();
@@ -109,15 +111,45 @@ describe("syncNow", () => {
 
   it("has nothing to do on a second run", async () => {
     await addLocal("aa1", 60);
-    await sync();
+    await upload();
 
     expect(await sync()).toMatchObject({ queued: 0, done: 0 });
+    expect(await upload()).toMatchObject({ queued: 0, done: 0 });
+  });
+
+  it("does not upload new tracks on a plain sync", async () => {
+    await addLocal("aa1", 60);
+
+    expect(await sync()).toMatchObject({ queued: 0, done: 0 });
+    expect(remoteIndex().tracks).toEqual([]);
+  });
+
+  it("uploads only the chosen tracks", async () => {
+    await addLocal("small", 40);
+    await addLocal("large", 250, 2);
+
+    const result = await uploadTracks(ctx, ["small"]);
+
+    expect(result).toMatchObject({ queued: 1, done: 1 });
+    expect(remoteIndex().tracks.map((t) => t.id)).toEqual(["small"]);
+    expect(await db.syncState.get("large")).toBeUndefined();
+  });
+
+  it("finishes queued steps without planning new uploads", async () => {
+    await addLocal("queued", 40);
+    await addLocal("not-chosen", 40, 2);
+    await outbox.enqueue([{ op: "push", trackId: "queued" }]);
+
+    const result = await resumeQueued(ctx);
+
+    expect(result.done).toBe(1);
+    expect(remoteIndex().tracks.map((t) => t.id)).toEqual(["queued"]);
   });
 
   it("carries a delete from one device to another", async () => {
     await addLocal("keep", 40, 1);
     await addLocal("drop", 40, 2);
-    await sync();
+    await upload();
     const deviceA = await snapshot();
 
     await wipeDevice(); // device B pulls everything, then deletes one
@@ -137,13 +169,13 @@ describe("syncNow", () => {
 
   it("keeps a track that was added elsewhere instead of deleting it", async () => {
     await addLocal("aa1", 40);
-    await sync();
+    await upload();
     const deviceA = await snapshot();
 
     await wipeDevice();
     await sync();
     await addLocal("new-on-b", 40, 3);
-    await sync();
+    await upload();
 
     await restore(deviceA);
     await sync();
@@ -156,13 +188,13 @@ describe("syncNow", () => {
     await addLocal("bb2", 40, 2);
     dropAfterPosts = 6; // the first track needs 5 writes; the second one is cut off
 
-    const first = await sync();
+    const first = await upload();
     expect(first.stoppedBy).toBe("offline");
     expect(first.done).toBe(1);
     expect(await db.outbox.count()).toBe(1);
 
     dropAfterPosts = null;
-    const second = await sync();
+    const second = await upload();
     expect(second).toMatchObject({ queued: 0, done: 1 });
     expect(remoteIndex().tracks).toHaveLength(2);
   });
@@ -182,22 +214,22 @@ describe("syncNow", () => {
     let clock = 5_000_000;
     fake.limitNextWrites(1);
 
-    const first = await sync({ now: () => clock });
+    const first = await upload({ now: () => clock });
     expect(first.stoppedBy).toBe("rate-limit");
     expect(first.done).toBe(0);
 
-    const tooSoon = await sync({ now: () => clock + 1_000 });
+    const tooSoon = await upload({ now: () => clock + 1_000 });
     expect(tooSoon.done).toBe(0);
     expect(tooSoon.waitMs).toBeGreaterThan(0);
 
     clock += 8_000; // the fake asks for 7 seconds
-    const second = await sync({ now: () => clock });
+    const second = await upload({ now: () => clock });
     expect(second.done).toBe(2);
   });
 
   it("does not save a track whose download is corrupt", async () => {
     await addLocal("aa1", 80);
-    await sync();
+    await upload();
     const manifest = JSON.parse(fake.fileText(NAME, "manifests/aa1.json")!) as Manifest;
     manifest.media.sha256 = "0".repeat(64);
     await fake.pushFiles(NAME, { "manifests/aa1.json": JSON.stringify(manifest) });
@@ -212,13 +244,13 @@ describe("syncNow", () => {
 
   it("upload only sends new tracks and leaves everything else queued for later", async () => {
     await addLocal("here", 40);
-    await sync(); // here -> remote
+    await upload(); // here -> remote
     const deviceA = await snapshot();
 
     await wipeDevice();
     await sync(); // device B pulls "here"
     await addLocal("only-b", 40, 3);
-    await sync(); // pushes "only-b"
+    await upload(); // pushes "only-b"
     await restore(deviceA); // device A again: has "here", lacks "only-b"
     await addLocal("only-a", 40, 4);
 
@@ -231,12 +263,13 @@ describe("syncNow", () => {
 
   it("download only brings tracks in and sends nothing", async () => {
     await addLocal("a", 40);
-    await sync();
+    await upload();
     const deviceA = await snapshot();
 
     await wipeDevice();
     await addLocal("local-only", 40, 9);
-    await sync(); // pulls "a", pushes "local-only"
+    await sync(); // pulls "a"
+    await upload(); // pushes "local-only"
     await restore(deviceA);
     const writesBefore = fake.requests.filter((r) => r.startsWith("POST")).length;
 

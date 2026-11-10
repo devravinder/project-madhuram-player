@@ -101,7 +101,7 @@ describe("removeRemoteTrack", () => {
 describe("deleting a backed-up song", () => {
   it("delete everywhere removes it from GitHub at once", async () => {
     await addLocal("aa1", 50);
-    await sync();
+    await sync("upload");
 
     expect(await deleteEverywhere("aa1", library)).toBe("deleted");
 
@@ -113,7 +113,7 @@ describe("deleting a backed-up song", () => {
 
   it("delete everywhere while offline finishes on the next sync", async () => {
     await addLocal("aa1", 50);
-    await sync();
+    await sync("upload");
     offline = true;
 
     expect(await deleteEverywhere("aa1", library)).toBe("queued");
@@ -128,7 +128,7 @@ describe("deleting a backed-up song", () => {
   it("remove from this device keeps it on GitHub until a download sync", async () => {
     await addLocal("aa1", 50);
     await addLocal("bb2", 50, 2);
-    await sync();
+    await sync("upload");
     await createPlaylist({ name: "Mix", description: "", songIds: ["aa1", "bb2"] });
 
     await removeFromDeviceOnly("aa1");

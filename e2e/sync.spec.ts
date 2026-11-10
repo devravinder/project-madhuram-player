@@ -14,6 +14,12 @@ const wipeDevice = (page: import("@playwright/test").Page) =>
     await Promise.all([db.songs.clear(), db.files.clear(), db.syncState.clear(), db.outbox.clear()]);
   });
 
+// New songs go to GitHub only from the "Not backed up" list in Settings.
+const uploadAll = async (page: import("@playwright/test").Page, count: number) => {
+  await page.getByText(`Not backed up (${count})`).click();
+  await page.getByRole("button", { name: "Upload all" }).click();
+};
+
 test("backs a library up to GitHub and restores it on a fresh device", async ({ page }) => {
   await signInWithFake(page);
   await importFiles(page, [
@@ -24,7 +30,12 @@ test("backs a library up to GitHub and restores it on a fresh device", async ({ 
   await page.goto("/#/settings");
   await expect(page.getByText(`tester/${REPO}`)).toBeVisible();
   await page.getByRole("button", { name: "Sync", exact: true }).click();
+  await expect(page.getByText("Everything is up to date.")).toBeVisible({ timeout: 15_000 });
+  expect(await remoteTitles(page)).toEqual([]); // a plain sync uploads nothing new
+
+  await uploadAll(page, 2);
   await expect(page.getByText("Synced 2 items.")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("Every song is backed up.")).toBeVisible();
   expect(await remoteTitles(page)).toEqual(["Alpha", "Beta"]);
   expect(await page.evaluate((r) => (window as any).__fake.repos.get(r).private, REPO)).toBe(true);
 
@@ -55,7 +66,7 @@ test("waits out a GitHub rate limit and carries on by itself", async ({ page }) 
   await page.goto("/#/settings");
 
   await page.evaluate(() => (window as any).__fake.limitNextWrites(1));
-  await page.getByRole("button", { name: "Sync", exact: true }).click();
+  await uploadAll(page, 1);
 
   await expect(page.getByText(/slow down\. Continues by itself at/)).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText("Synced 1 item.")).toBeVisible({ timeout: 20_000 });
@@ -94,7 +105,7 @@ test("deletes a backed-up song from GitHub, or from this device only", async ({ 
     { name: "Kept.wav", buffer: wavBuffer(2, 5) },
   ]);
   await page.goto("/#/settings");
-  await page.getByRole("button", { name: "Sync", exact: true }).click();
+  await uploadAll(page, 2);
   await expect(page.getByText("Synced 2 items.")).toBeVisible({ timeout: 20_000 });
   const before = (await remotePaths(page)).length;
 
@@ -135,7 +146,6 @@ test("carries on with unfinished sync steps when the app opens signed in", async
       id: `push:${song.id}`, op: "push", trackId: song.id, status: "running",
       attempts: 0, nextAttemptAt: 0, createdAt: Date.now(),
     });
-    localStorage.setItem("madhuram.syncMode", "upload");
   });
 
   await installFakeGithub(page);
@@ -147,4 +157,24 @@ test("carries on with unfinished sync steps when the app opens signed in", async
   await expect.poll(() => remoteTitles(page).catch(() => []), { timeout: 20_000 }).toEqual(["Leftover"]);
   await page.goto("/#/settings");
   await expect(page.getByText("Synced 1 item.")).toBeVisible();
+});
+
+test("uploads just the chosen song and nothing after import", async ({ page }) => {
+  await signInWithFake(page);
+  await importFiles(page, [
+    { name: "Small.wav", buffer: wavBuffer(1) },
+    { name: "Huge.wav", buffer: wavBuffer(6, 5) },
+  ]);
+  await page.waitForTimeout(4000); // past the delay of automatic playlist sync
+  expect(await remoteTitles(page).catch(() => [])).toEqual([]);
+
+  await page.goto("/#/settings");
+  await page.getByText("Not backed up (2)").click();
+  await expect(page.getByText("46.9 KB")).toBeVisible(); // sizes help leave big files out
+  await page.getByRole("button", { name: "Upload Small" }).click();
+  await expect(page.getByText("Synced 1 item.")).toBeVisible({ timeout: 20_000 });
+
+  expect(await remoteTitles(page)).toEqual(["Small"]);
+  await expect(page.getByText("Not backed up (1)")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Upload Huge" })).toBeVisible();
 });

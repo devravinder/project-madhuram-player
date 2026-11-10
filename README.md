@@ -15,8 +15,9 @@ installed like an app. It works offline, with no account and no server.
 1. Without sign-in: tap "Try without login", then Import songs or videos. They stay on this
    device and play offline. Explore lets you play public libraries by `owner/repo`.
 2. With sign-in: paste a GitHub token with repo access. In Settings, GitHub backup:
-   - Sync sends new songs to your private `project-music-files` repo and brings in songs
-     from your other devices. Upload only sends; Download only brings in.
+   - Nothing uploads by itself. Open "Not backed up" to upload one song or all of them
+     to your private `project-music-files` repo, leaving out large files if you like.
+   - Sync brings in songs from your other devices; Download brings back removed ones.
    - Big files are split into parts; a full repo continues in `project-music-files-1`, `-2`.
    - Playlists and followed libraries sync by themselves. Removing the token keeps your music.
 

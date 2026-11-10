@@ -24,25 +24,3 @@ export function setLibraryRepoName(name: string) {
     // Storage can be blocked; the name then lasts until reload.
   }
 }
-
-const SYNC_MODE_KEY = "madhuram.syncMode";
-const SYNC_MODES = ["both", "upload", "download"] as const;
-export type SavedSyncMode = (typeof SYNC_MODES)[number];
-
-// The last sync mode, so unfinished work resumes the same way after a restart.
-export function getLastSyncMode(): SavedSyncMode {
-  try {
-    const saved = localStorage.getItem(SYNC_MODE_KEY);
-    return SYNC_MODES.find((mode) => mode === saved) ?? "both";
-  } catch {
-    return "both";
-  }
-}
-
-export function setLastSyncMode(mode: SavedSyncMode) {
-  try {
-    localStorage.setItem(SYNC_MODE_KEY, mode);
-  } catch {
-    // Storage can be blocked; a restart then resumes with a full sync.
-  }
-}

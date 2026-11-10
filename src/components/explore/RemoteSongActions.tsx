@@ -1,6 +1,4 @@
 import { IconButton } from "@/components/Elements";
-import { useSync } from "@/context/SyncContext";
-import { useAuth } from "@/hooks/useAuth";
 import { useSavedHashes } from "@/hooks/useSavedHashes";
 import { downloadCopy } from "@/services/public/remote";
 import type { Song } from "@/types/music";
@@ -11,8 +9,6 @@ import { toast } from "sonner";
 // Saves a track from a public library as the user's own copy.
 export default function RemoteSongActions({ song }: { song: Song }) {
   const saved = useSavedHashes();
-  const { status } = useAuth();
-  const { sync } = useSync();
   const [busy, setBusy] = useState(false);
 
   const isSaved = !!song.sha256 && saved.has(song.sha256);
@@ -23,9 +19,8 @@ export default function RemoteSongActions({ song }: { song: Song }) {
     setBusy(true);
     try {
       await downloadCopy(song);
+      // Backing it up is the user's choice, in Settings.
       toast.success(`Saved ${song.title}`);
-      // A signed-in user's copy also goes to their own repository.
-      if (status === "signed-in") void sync("upload");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Download failed");
     } finally {

@@ -69,3 +69,15 @@ When signed in, deleting a song that is on GitHub offers "Delete everywhere" or
   playlists meanwhile.
 - When signed out, a backed-up song is only removed from the device, so signing
   in later never deletes it from GitHub by surprise.
+
+## ADR-011: New songs upload only when the user chooses
+
+Importing or saving a song never uploads it. Settings, GitHub backup lists the songs that
+are not backed up, with their size, an Upload button for each and "Upload all", so large
+files can be left out.
+
+- Sync brings in tracks and deletes, and sends edits of tracks already backed up. It does
+  not upload new tracks.
+- Automatic runs (app opens, connection returns, rate limit ends) only finish steps the
+  user already started, or retry the exact job a pause interrupted. They never plan new
+  uploads.

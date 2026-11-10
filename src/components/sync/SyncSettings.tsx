@@ -2,8 +2,9 @@ import { Button, Input } from "@/components/Elements";
 import { useSync, type LastRun } from "@/context/SyncContext";
 import { useAuth } from "@/hooks/useAuth";
 import { authStore } from "@/services/github/authStore";
-import { CloudDownload, CloudUpload, RefreshCcw, Square } from "lucide-react";
+import { CloudDownload, RefreshCcw, Square } from "lucide-react";
 import { useState, type FormEvent } from "react";
+import NotBackedUp from "./NotBackedUp";
 
 const STOP_TEXT = {
   offline: "You are offline. Waiting items will sync when you reconnect.",
@@ -118,13 +119,6 @@ export default function SyncSettings() {
           <RefreshCcw size={18} /> Sync
         </Button.Primary>
         <Button.Secondary
-          onClick={() => void sync("upload")}
-          disabled={busy}
-          className="text-base disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-          <CloudUpload size={18} /> Upload
-        </Button.Secondary>
-        <Button.Secondary
           onClick={() => void sync("download")}
           disabled={busy}
           className="text-base disabled:opacity-60 disabled:cursor-not-allowed"
@@ -137,6 +131,13 @@ export default function SyncSettings() {
           </Button.Secondary>
         )}
       </div>
+
+      <p className="text-sm text-muted-foreground">
+        Sync brings in songs from your other devices and keeps playlists in step. New
+        songs go to GitHub only when you upload them below.
+      </p>
+
+      <NotBackedUp />
 
       {keptOnGithub > 0 && (
         <p className="text-sm text-muted-foreground">

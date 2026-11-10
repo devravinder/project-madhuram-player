@@ -7,6 +7,9 @@ export type SyncStep = { op: OutboxOp; trackId: string };
 export type PlanOptions = {
   // Bring back tracks that were removed from this device only.
   restoreDeviceRemoved?: boolean;
+  // Upload tracks that were never backed up. Off for a plain sync, so the
+  // user picks which new files go to GitHub.
+  pushNew?: boolean;
 };
 
 // Decides what to push, pull or delete. The record of the last successful
@@ -30,10 +33,11 @@ export function planSync(
 
     if (!entry || entry.deleted) {
       // Known to a past sync, now gone remotely: it was deleted elsewhere.
-      steps.push({
-        op: synced.has(track.id) || entry?.deleted ? "delete-local" : "push",
-        trackId: track.id,
-      });
+      if (synced.has(track.id) || entry?.deleted) {
+        steps.push({ op: "delete-local", trackId: track.id });
+      } else if (options.pushNew ?? true) {
+        steps.push({ op: "push", trackId: track.id });
+      }
       continue;
     }
 

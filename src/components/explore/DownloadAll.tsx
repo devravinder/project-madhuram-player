@@ -1,6 +1,4 @@
 import { Button } from "@/components/Elements";
-import { useSync } from "@/context/SyncContext";
-import { useAuth } from "@/hooks/useAuth";
 import { useSavedHashes } from "@/hooks/useSavedHashes";
 import { downloadCopy } from "@/services/public/remote";
 import type { Song } from "@/types/music";
@@ -11,8 +9,6 @@ import { toast } from "sonner";
 // Saves every track not yet on this device, one after another.
 export default function DownloadAll({ songs }: { songs: Song[] }) {
   const saved = useSavedHashes();
-  const { status } = useAuth();
-  const { sync } = useSync();
   const [progress, setProgress] = useState<{ done: number; total: number }>();
   const stop = useRef(false);
 
@@ -39,7 +35,6 @@ export default function DownloadAll({ songs }: { songs: Song[] }) {
     setProgress(undefined);
     const failures = failed > 0 ? `, ${failed} failed` : "";
     toast(`Saved ${done} of ${queue.length}${failures}`);
-    if (done > 0 && status === "signed-in") void sync("upload");
   };
 
   if (progress) {

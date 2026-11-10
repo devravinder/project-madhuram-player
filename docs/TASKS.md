@@ -72,4 +72,5 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 - [x] Delete a backed-up song everywhere, or from this device only (Download brings it back)
 - [x] Sync waits while the app is in the background instead of stopping as offline
 - [x] Public library downloads wait out the background too
-- [x] Unfinished sync resumes when the app opens, in the same mode
+- [x] Unfinished sync steps resume when the app opens
+- [x] No automatic uploads; Settings lists songs not backed up, upload one or all

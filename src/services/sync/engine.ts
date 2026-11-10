@@ -18,7 +18,8 @@ import { planSync } from "./planner";
 import { removeRemoteTrack } from "./remove";
 import { uploadTrack, type UploadOptions } from "./upload";
 
-// Upload only sends new and changed tracks; download only brings them in.
+// Sync: brings in tracks and deletes, sends edits of backed-up tracks.
+// Upload: also sends tracks that were never backed up. Download: only brings in.
 export type SyncMode = "both" | "upload" | "download";
 
 const allows = (mode: SyncMode, op: OutboxOp) =>
@@ -42,6 +43,7 @@ export async function queueSync(
   ]);
   const steps = planSync(local, index.tracks, records, {
     restoreDeviceRemoved: mode === "download",
+    pushNew: mode === "upload",
   });
   return outbox.enqueue(steps.filter((step) => allows(mode, step.op)));
 }
@@ -129,4 +131,31 @@ export async function syncNow(
     filter: (item) => allows(mode, item.op),
   });
   return { ...result, queued };
+}
+
+// Uploads just the chosen tracks, so the user can leave large files out.
+export async function uploadTracks(
+  ctx: SyncContext,
+  trackIds: string[],
+  options: RunOptions = {},
+): Promise<RunResult & { queued: number }> {
+  await outbox.resetInterrupted();
+  const chosen = new Set(trackIds);
+  const queued = await outbox.enqueue(trackIds.map((trackId) => ({ op: "push", trackId })));
+  const result = await outbox.run(createHandler(ctx), {
+    ...options,
+    filter: (item) => item.op === "push" && chosen.has(item.trackId),
+  });
+  return { ...result, queued };
+}
+
+// Finishes steps already queued by an earlier sync or upload, without
+// planning new ones; used when the app opens or the connection returns.
+export async function resumeQueued(
+  ctx: SyncContext,
+  options: RunOptions = {},
+): Promise<RunResult & { queued: number }> {
+  await outbox.resetInterrupted();
+  const result = await outbox.run(createHandler(ctx), options);
+  return { ...result, queued: 0 };
 }
