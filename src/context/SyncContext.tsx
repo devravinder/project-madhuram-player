@@ -1,7 +1,10 @@
 import { config } from "@/config";
 import { useAuth } from "@/hooks/useAuth";
 import db from "@/services/db";
-import { UnsupportedIndexVersionError } from "@/services/github/indexTypes";
+import {
+  UnsupportedIndexVersionError,
+  type RepoInfo,
+} from "@/services/github/indexTypes";
 import type { LibraryRepo } from "@/services/github/library";
 import { LibraryNameTakenError, openLibrary } from "@/services/github/session";
 import { HttpError } from "@/services/httpError";
@@ -40,7 +43,10 @@ export type LastRun = {
   stoppedBy?: StopReason;
 };
 
+export type RepoUsage = { repos: RepoInfo[]; maxRepoBytes: number };
+
 type SyncContextValue = {
+  usage?: RepoUsage;
   phase: SyncPhase;
   error?: string;
   nameTaken?: string;
@@ -74,6 +80,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const [nameTaken, setNameTaken] = useState<string>();
   const [last, setLast] = useState<LastRun>();
   const [repoName, setRepoName] = useState(getLibraryRepoName);
+  const [usage, setUsage] = useState<RepoUsage>();
 
   const running = useRef(false);
   const cancelled = useRef(false);
@@ -129,6 +136,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           await syncPlaylists(library);
           await syncSources(library);
         }
+        const { index } = await library.read();
+        setUsage({ repos: index.repos, maxRepoBytes: index.config.maxRepoBytes });
         setLast({
           at: Date.now(),
           queued: result.queued,
@@ -197,6 +206,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   return (
     <SyncContext.Provider
       value={{
+        usage,
         phase,
         error,
         nameTaken,

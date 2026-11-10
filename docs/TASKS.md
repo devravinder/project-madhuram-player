@@ -62,6 +62,6 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 
 ## Phase 6 — Polish
 
-- [ ] Storage usage and persistence in settings
+- [x] Storage usage and persistence in settings (device meter, per-repo GitHub meter, keep-data request)
 - [ ] Rate limit and error handling UI
 - [ ] End-to-end tests for offline playback and sync

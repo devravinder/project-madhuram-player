@@ -9,6 +9,7 @@ import {
   mediaKindOf,
   withMediaType,
 } from "@/services/mediaTypes";
+import { requestPersistence } from "@/services/storageUsage";
 import { toast } from "sonner";
 export function UploadModal() {
   const navigate = useNavigate();
@@ -55,6 +56,7 @@ export function UploadModal() {
     }
 
     if (imported > 0) {
+      void requestPersistence();
       toast.success(`Imported ${imported} of ${all.length} files`);
       navigate({ to: "/library" });
     }
