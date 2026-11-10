@@ -18,7 +18,7 @@ export const getPlayListSongs = async (playlist?: Playlist) => {
 export const addSong = async (song: Omit<Song, "id">, id?: string) => {
   const newSong: Song = {
     ...song,
-    id: id || `${getId()}`,
+    id: id || getId(36),
     addedAt: new Date(),
   };
   await db.songs.add(newSong);

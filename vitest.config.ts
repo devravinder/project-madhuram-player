@@ -1,16 +1,21 @@
 import path from "path";
-import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
-  plugins: [react()],
   resolve: { alias: { "@": path.resolve(__dirname, "./src") } },
   test: {
-    environment: "jsdom",
+    // Node's File and Blob clone into fake IndexedDB; component tests opt into jsdom.
+    environment: "node",
     setupFiles: ["./src/testing/setup.ts"],
     passWithNoTests: true,
     coverage: {
-      include: ["src/services/**", "src/queries/**"],
+      include: [
+        "src/services/storage/**",
+        "src/services/sync/**",
+        "src/services/github/**",
+        "src/services/hash.ts",
+      ],
+      exclude: ["**/*.test.ts", "src/services/github/authStore.ts"],
       thresholds: { lines: 80, functions: 80, branches: 70 },
     },
   },

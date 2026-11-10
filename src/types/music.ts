@@ -11,6 +11,8 @@ export interface Song {
   mediaId: string; // key of the audio or video file
   mime: string;
   bytes: number;
+  sha256?: string; // set when the track is synced
+  updatedAt?: Date;
   coverImageId?: string; // cover art, or a poster frame for video
 }
 

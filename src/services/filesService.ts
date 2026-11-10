@@ -9,7 +9,7 @@ const getFileExtension = (file: File): string => {
 export const saveFile = async (file: File, fileId?: string) => {
   const ext = getFileExtension(file);
   const id =
-    fileId || `${getId()}${ext ? "." + ext : ""}`;
+    fileId || `${getId(36)}${ext ? "." + ext : ""}`;
 
   const newFile: AppFile = {
     id,

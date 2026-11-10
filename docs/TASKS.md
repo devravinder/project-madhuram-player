@@ -38,7 +38,7 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 
 ## Phase 4 — GitHub storage
 
-- [ ] `StorageProvider` interface and device provider
+- [x] `StorageProvider` interface and device provider
 - [x] Token setup screen and validation (login first, with "Try without login")
 - [~] Remove token action: clears the token and keeps local data, with a link to revoke on GitHub (outbox stop comes with the outbox)
 - [ ] Find an existing library repo: reuse if marked, adopt if empty, else ask for a new name
