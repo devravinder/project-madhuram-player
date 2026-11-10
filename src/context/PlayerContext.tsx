@@ -10,6 +10,7 @@ import React, {
 } from "react";
 import { usePlaylists } from "./PlaylistContext";
 import { getFile } from "@/services/filesService";
+import { mediaElement } from "@/services/mediaElement";
 import { IMAGE_512, UNKNOWN } from "@/constants";
 import { toast } from "sonner";
 
@@ -25,8 +26,7 @@ interface PlayerContextType {
   queue: Song[];
   queueIndex: number;
   sleepTimer: SleepTimer;
-
-  // Actions
+  mediaElement: HTMLVideoElement;
   playSong: (queue: Song[], songIndex: number, playListId: string) => void;
   togglePlay: () => void;
   pause: () => void;
@@ -55,7 +55,7 @@ const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
 
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const { addToRecentlyPlayed } = usePlaylists();
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const mediaRef = useRef<HTMLVideoElement | null>(null);
 
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -77,8 +77,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   });
 
   const pause = useCallback(() => {
-    if (audioRef.current) {
-      audioRef.current.pause();
+    if (mediaRef.current) {
+      mediaRef.current.pause();
       setIsPlaying(false);
     }
   }, []);
@@ -97,7 +97,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const loadAndPlay = useCallback(
     async (song: Song, playListId?: string) => {
-      const audio = audioRef.current;
+      const audio = mediaRef.current;
       if (!audio) return;
 
       // Only the latest request may start playback.
@@ -121,6 +121,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       const coverUrl = coverFile && URL.createObjectURL(coverFile.data);
       objectUrlsRef.current = coverUrl ? [audioUrl, coverUrl] : [audioUrl];
 
+      // Shown for video until the first frame arrives.
+      audio.poster = song.kind === "video" && coverUrl ? coverUrl : "";
       audio.src = audioUrl;
       try {
         await audio.play();
@@ -143,8 +145,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const handleSongEnd = useCallback(() => {
     if (repeatMode === "one") {
-      audioRef.current!.currentTime = 0;
-      audioRef.current!.play();
+      mediaRef.current!.currentTime = 0;
+      mediaRef.current!.play();
     } else if (queueIndex < queue.length - 1) {
       // repeat mode off
       const nextIndex = shuffle
@@ -166,12 +168,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     handleSongEndRef.current = handleSongEnd;
   }, [handleSongEnd]);
 
-  // Initialize audio element
+  // Initialize media element
   useEffect(() => {
-    audioRef.current = new Audio();
-    audioRef.current.volume = volumeRef.current;
+    mediaRef.current = mediaElement;
+    mediaElement.volume = volumeRef.current;
 
-    const audio = audioRef.current;
+    const audio = mediaElement;
 
     const handleTimeUpdate = () => {
       setProgress(audio.currentTime);
@@ -185,14 +187,22 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       handleSongEndRef.current(); // bcz without destroying the audio ( with out re-rendering ), to get the latest method
     };
 
+    // Native controls (fullscreen, headset keys) can also play and pause.
+    const handlePlay = () => setIsPlaying(true);
+    const handlePause = () => setIsPlaying(false);
+
     audio.addEventListener("timeupdate", handleTimeUpdate);
     audio.addEventListener("loadedmetadata", handleLoadedMetadata);
     audio.addEventListener("ended", handleEnded);
+    audio.addEventListener("play", handlePlay);
+    audio.addEventListener("pause", handlePause);
 
     return () => {
       audio.removeEventListener("timeupdate", handleTimeUpdate);
       audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
       audio.removeEventListener("ended", handleEnded);
+      audio.removeEventListener("play", handlePlay);
+      audio.removeEventListener("pause", handlePause);
       audio.pause();
       cancelPendingLoad();
       revokeObjectUrls();
@@ -201,8 +211,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   // Update volume when changed
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = volume;
+    if (mediaRef.current) {
+      mediaRef.current.volume = volume;
     }
   }, [volume]);
 
@@ -235,20 +245,20 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   );
 
   const togglePlay = useCallback(() => {
-    if (!audioRef.current || !currentSong) return;
+    if (!mediaRef.current || !currentSong) return;
 
     if (isPlaying) {
-      audioRef.current.pause();
+      mediaRef.current.pause();
       setIsPlaying(false);
     } else {
-      audioRef.current.play();
+      mediaRef.current.play();
       setIsPlaying(true);
     }
   }, [isPlaying, currentSong]);
 
   const resume = useCallback(() => {
-    if (audioRef.current && currentSong) {
-      audioRef.current.play();
+    if (mediaRef.current && currentSong) {
+      mediaRef.current.play();
       setIsPlaying(true);
     }
   }, [currentSong]);
@@ -267,11 +277,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, [queue, queueIndex, shuffle, loadAndPlay]);
 
   const previous = useCallback(() => {
-    if (!audioRef.current) return;
+    if (!mediaRef.current) return;
 
     // If more than 3 seconds in, restart current song
-    if (audioRef.current.currentTime > 3) {
-      audioRef.current.currentTime = 0;
+    if (mediaRef.current.currentTime > 3) {
+      mediaRef.current.currentTime = 0;
       return;
     }
 
@@ -283,8 +293,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, [queue, queueIndex, loadAndPlay]);
 
   const seek = useCallback((time: number) => {
-    if (audioRef.current) {
-      audioRef.current.currentTime = time;
+    if (mediaRef.current) {
+      mediaRef.current.currentTime = time;
       setProgress(time);
     }
   }, []);
@@ -340,6 +350,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         queueIndex,
 
         sleepTimer,
+        mediaElement,
         playSong,
         togglePlay,
         pause,

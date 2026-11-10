@@ -125,6 +125,8 @@ The outbox is persisted in IndexedDB, so a reload or a lost connection resumes t
 
 ## Playback
 
+One media element plays every track, audio or video, so the queue, progress and lock-screen controls work the same for both. For a video, the full-screen player attaches that element into the page, with Fullscreen and Picture-in-Picture buttons. Native controls show only while fullscreen. Leaving the player detaches the element and playback continues.
+
 - **Device tracks:** read from local storage and played through an object URL that the
   player creates and revokes.
 - **Public, unsplit:** the raw URL is the media source. The browser streams and seeks with

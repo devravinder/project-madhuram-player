@@ -21,6 +21,7 @@ import { VolumeSlider } from "./VolumeSlider";
 import Waves from "../Waves";
 import { usePlaylists } from "@/context/PlaylistContext";
 import AudioImage from "../AudioImage";
+import { VideoSurface } from "./VideoSurface";
 
 export default function FullScreenPlayer({
   onClose,
@@ -58,8 +59,12 @@ export default function FullScreenPlayer({
     <div className="w-full max-w-md mx-auto h-full p-4 flex flex-col">
       <div className="flex-1 min-h-0 flex flex-col bg-linear-to-br from-slate-900 to-slate-800 rounded-3xl shadow-2xl">
         <div className="flex justify-center items-center relative">
-          <AudioImage id={song.coverImageId} alt={song.title} className="w-full aspect-square rounded-t-3xl object-cover" />
-          <div className="absolute inset-0 bg-linear-to-t from-slate-900/90 via-transparent to-transparent" />
+          {song.kind === "video" ? (
+            <VideoSurface className="w-full aspect-video rounded-t-3xl overflow-hidden" />
+          ) : (
+            <AudioImage id={song.coverImageId} alt={song.title} className="w-full aspect-square rounded-t-3xl object-cover" />
+          )}
+          <div className="pointer-events-none absolute inset-0 bg-linear-to-t from-slate-900/90 via-transparent to-transparent" />
           <button
             onClick={() => toggleLike(song.id)}
             className="absolute top-4 right-4 p-2.5 bg-black/30 backdrop-blur-sm rounded-full hover:bg-black/50 transition-all"
