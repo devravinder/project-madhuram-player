@@ -6,21 +6,25 @@ import type { Playlist } from "@/types/music";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Check, ListMusic, ListPlus, MoreVertical, Trash } from "lucide-react";
 import { useEffect, useState, type MouseEventHandler } from "react";
+import { toast } from "sonner";
 import { useSongsList } from "./SongListContext";
 
 const SongActions = ({
   id,
-  allowDelete,
+  isCurrent,
 }: {
   id: string;
-  allowDelete: boolean;
+  isCurrent: boolean;
 }) => {
   const { refetch } = useSongsList();
   const { setFavourites } = usePlaylists();
   const handleDelete: MouseEventHandler<HTMLDivElement> = async (e) => {
     e.stopPropagation();
 
-    if (!allowDelete) return;
+    if (isCurrent) {
+      toast.error("This song is currently playing, so it cannot be deleted");
+      return;
+    }
 
     const yes = window.confirm("Really want to delete");
 
@@ -45,8 +49,7 @@ const SongActions = ({
           <DropdownMenu.Item
             role="button"
             onClick={handleDelete}
-            disabled={!allowDelete}
-            className="disabled:cursor-not-allowed outline-none text-muted-foreground flex flex-row items-center gap-2 px-4 py-2 rounded-md hover:bg-secondary/50 cursor-pointer transition-all duration-200 "
+            className="outline-none text-muted-foreground flex flex-row items-center gap-2 px-4 py-2 rounded-md hover:bg-secondary/50 cursor-pointer transition-all duration-200 "
           >
             <Trash size={20} /> Delete
           </DropdownMenu.Item>

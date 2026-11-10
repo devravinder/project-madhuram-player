@@ -28,6 +28,7 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 - [x] Lock-screen artwork uses the song cover
 - [x] Import accepts MP3, M4A, AAC, FLAC, OGG, OPUS, WAV, including files with no MIME type
 - [x] One unreadable file no longer stops an import
+- [x] Deleting the song that is playing shows an error instead of hiding the option
 
 ## Phase 3 — Video and model
 
@@ -43,7 +44,8 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 - [ ] Find an existing library repo: reuse if marked, adopt if empty, else ask for a new name
 - [ ] Recover missing shard repos by marker
 - [ ] Create repos, read and write `index.json` with conflict retry
-- [ ] Add `sha256` and `parts` to tracks when syncing\n- [ ] Byte split, manifest, atomic commit upload
+- [ ] Add `sha256` and `parts` to tracks when syncing
+- [ ] Byte split, manifest, atomic commit upload
 - [ ] Persisted outbox with resume
 - [ ] Repo rollover at the size limit
 - [ ] Playlists sync and tombstones
