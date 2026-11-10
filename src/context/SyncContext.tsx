@@ -124,6 +124,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   );
 
   const running = useRef(false);
+  const lastMode = useRef<SyncMode>("both");
   const cancelled = useRef(false);
   const opened = useRef<{ key: string; library: LibraryRepo }>(undefined);
 
@@ -164,6 +165,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const sync = useCallback(
     async (mode: SyncMode = "both") => {
       if (!signedIn || running.current) return;
+      lastMode.current = mode;
       clearResume();
       running.current = true;
       cancelled.current = false;
@@ -283,6 +285,19 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     window.addEventListener("online", resume);
     return () => window.removeEventListener("online", resume);
   }, [signedIn, sync]);
+
+  // A sync cut off while the app was in the background carries on
+  // when the user comes back to it.
+  useEffect(() => {
+    if (!signedIn || last?.stoppedBy !== "offline") return;
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && navigator.onLine) {
+        void sync(lastMode.current);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [signedIn, last, sync]);
 
   return (
     <SyncContext.Provider

@@ -31,6 +31,87 @@ describe("GithubApi", () => {
     expect(error.status).toBe(0);
   });
 
+  // A phone cuts the page's requests when the user switches apps.
+  const noWait = async () => {};
+  const backgroundPage = () => {
+    let hidden = true;
+    let times = 1;
+    return {
+      show: () => (hidden = false),
+      hide: () => ((hidden = true), times++),
+      visibility: {
+        isHidden: () => hidden,
+        hiddenTimes: () => times,
+        waitUntilVisible: async () => {
+          hidden = false; // the user comes back
+        },
+      },
+    };
+  };
+
+  it("waits out a request cut off in the background and carries on", async () => {
+    const { fake } = setup();
+    const page = backgroundPage();
+    let cut = 2;
+    const api = new GithubApi(
+      fake.token,
+      (input, init) => (cut-- > 0 ? Promise.reject(new TypeError("cut")) : fake.fetch(input, init)),
+      page.visibility,
+      noWait,
+    );
+
+    expect((await api.getUser()).login).toBe(fake.login);
+  });
+
+  it("retries when the app went to the background during the request", async () => {
+    const { fake } = setup();
+    const page = backgroundPage();
+    page.show();
+    let first = true;
+    const api = new GithubApi(
+      fake.token,
+      (input, init) => {
+        if (!first) return fake.fetch(input, init);
+        first = false;
+        page.hide();
+        page.show(); // back before the failure is seen, as on iPhone
+        return Promise.reject(new TypeError("cut"));
+      },
+      page.visibility,
+      noWait,
+    );
+
+    expect((await api.getUser()).login).toBe(fake.login);
+  });
+
+  it("gives up when still offline after coming back", async () => {
+    const page = backgroundPage();
+    let calls = 0;
+    const api = new GithubApi(
+      "t",
+      () => (calls++, Promise.reject(new TypeError("offline"))),
+      page.visibility,
+      noWait,
+    );
+
+    expect(await api.getUser().catch((e) => e.status)).toBe(0);
+    expect(calls).toBe(5); // once hidden, then back in front plus 3 short retries
+  });
+
+  it("still reports offline when the app stayed in the foreground", async () => {
+    const page = backgroundPage();
+    page.show();
+    let calls = 0;
+    const api = new GithubApi(
+      "t",
+      () => (calls++, Promise.reject(new TypeError("offline"))),
+      page.visibility,
+    );
+
+    expect(await api.getUser().catch((e) => e.status)).toBe(0);
+    expect(calls).toBe(1);
+  });
+
   it("returns null for a missing repo and file", async () => {
     const { fake, api } = setup();
     await fake.seedRepo("lib", { "a.txt": "hi" });

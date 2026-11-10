@@ -16,3 +16,10 @@ export class RateLimitError extends HttpError {
     this.retryAfterSeconds = retryAfterSeconds;
   }
 }
+
+// The request never got an answer: offline, or cut off by the browser.
+export class NetworkError extends HttpError {
+  constructor() {
+    super(0, "Cannot reach GitHub. Check your connection.");
+  }
+}
