@@ -1,5 +1,6 @@
 import { usePlayer } from "@/context/PlayerContext";
 import { parkMediaElement } from "@/services/mediaElement";
+import { lockLandscapeFor, unlockOrientation } from "@/services/orientation";
 import { useEffect, type RefObject } from "react";
 import { toast } from "sonner";
 
@@ -22,8 +23,11 @@ export function VideoSurface({
     host.prepend(mediaElement);
 
     // Native controls only in fullscreen, where ours are out of reach.
+    // Leaving fullscreen in any way also lets the screen turn again.
     const syncControls = () => {
-      mediaElement.controls = document.fullscreenElement === host;
+      const inFullscreen = document.fullscreenElement === host;
+      mediaElement.controls = inFullscreen;
+      if (!inFullscreen) unlockOrientation();
     };
     document.addEventListener("fullscreenchange", syncControls);
 
@@ -47,6 +51,8 @@ export function useVideoActions(hostRef: RefObject<HTMLDivElement | null>) {
     try {
       if (hostRef.current?.requestFullscreen) {
         await hostRef.current.requestFullscreen();
+        // On phones a wide video turns sideways and stays so.
+        await lockLandscapeFor(mediaElement);
       } else {
         // iPhone only fullscreens the video element itself.
         (mediaElement as IosVideo).webkitEnterFullscreen?.();
