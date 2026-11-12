@@ -7,7 +7,7 @@ import { SyncProvider } from "@/context/SyncContext";
 import { useAuth } from "@/hooks/useAuth";
 import { ThemeProvider } from "@/hooks/useTheme";
 import { queryClient } from "@/query-client";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import AppRouter from "./AppRouter";
 import PWABadge from "./PWABadge";
 import { DevToolProvider } from "./context/DevToolContext";
@@ -25,7 +25,18 @@ const ContextProviders = ({ children }: { children: ReactNode }) => (
         <PlaylistProvider>
           <SyncProvider>
             <PlayerProvider>
-              <Toaster position="top-center" />
+              {/* Every notice can be closed, with the × at the top right. */}
+              <Toaster
+                position="top-center"
+                closeButton
+                style={
+                  {
+                    "--toast-close-button-start": "unset",
+                    "--toast-close-button-end": "0",
+                    "--toast-close-button-transform": "translate(35%, -35%)",
+                  } as CSSProperties
+                }
+              />
               {children}
             </PlayerProvider>
           </SyncProvider>
