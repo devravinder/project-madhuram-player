@@ -60,15 +60,15 @@ describe("rollover", () => {
     await upload("bb2", 100); // does not fit: needs a shard
 
     const saved = index();
-    expect(saved.repos.map((r) => r.name)).toEqual([NAME, `${NAME}-1`]);
-    expect(saved.currentRepo).toBe(`${NAME}-1`);
-    expect(fake.repos.get(`${NAME}-1`)?.private).toBe(true);
-    expect(JSON.parse(fake.fileText(`${NAME}-1`, SHARD_MARKER_PATH)!)).toEqual({
+    expect(saved.repos.map((r) => r.name)).toEqual([NAME, `${NAME}-part-1`]);
+    expect(saved.currentRepo).toBe(`${NAME}-part-1`);
+    expect(fake.repos.get(`${NAME}-part-1`)?.private).toBe(true);
+    expect(JSON.parse(fake.fileText(`${NAME}-part-1`, SHARD_MARKER_PATH)!)).toEqual({
       app: "madhuram",
       role: "shard",
       library: NAME,
     });
-    expect(manifestOf("bb2").media.parts[0].repo).toBe(`${NAME}-1`);
+    expect(manifestOf("bb2").media.parts[0].repo).toBe(`${NAME}-part-1`);
   });
 
   it("spreads one large file across repos and restores it exactly", async () => {
@@ -83,7 +83,7 @@ describe("rollover", () => {
 
     const manifest = manifestOf("cc3");
     const repos = new Set(manifest.media.parts.map((p) => p.repo));
-    expect(repos).toEqual(new Set([NAME, `${NAME}-1`]));
+    expect(repos).toEqual(new Set([NAME, `${NAME}-part-1`]));
     expect(fake.repos.size).toBe(2);
 
     const files = await fetchTrackFiles(manifest, (part) =>
@@ -122,49 +122,49 @@ describe("rollover", () => {
 
     expect(index().repos.map((r) => r.name)).toEqual([
       NAME,
-      `${NAME}-1`,
-      `${NAME}-2`,
+      `${NAME}-part-1`,
+      `${NAME}-part-2`,
     ]);
   });
 
   it("adopts a marked shard left behind by a lost update", async () => {
-    await fake.seedRepo(`${NAME}-1`, { [SHARD_MARKER_PATH]: marker() });
+    await fake.seedRepo(`${NAME}-part-1`, { [SHARD_MARKER_PATH]: marker() });
     await upload("ll2", 250);
 
     await upload("mm3", 100);
 
-    expect(index().repos.map((r) => r.name)).toEqual([NAME, `${NAME}-1`]);
+    expect(index().repos.map((r) => r.name)).toEqual([NAME, `${NAME}-part-1`]);
     expect(fake.repos.size).toBe(2);
   });
 
   it("skips a same-named repo that belongs to something else", async () => {
-    await fake.seedRepo(`${NAME}-1`, { "app.ts": "someone else's code" });
+    await fake.seedRepo(`${NAME}-part-1`, { "app.ts": "someone else's code" });
     await upload("nn4", 250);
 
     await upload("oo5", 100);
 
-    expect(index().currentRepo).toBe(`${NAME}-2`);
-    expect(fake.paths(`${NAME}-1`)).toEqual(["app.ts"]);
+    expect(index().currentRepo).toBe(`${NAME}-part-2`);
+    expect(fake.paths(`${NAME}-part-1`)).toEqual(["app.ts"]);
   });
 });
 
 describe("recoverShards", () => {
   it("adds marked shards missing from the index and ignores the rest", async () => {
-    await fake.seedRepo(`${NAME}-1`, { [SHARD_MARKER_PATH]: marker(), "data/x": "x".repeat(2048) });
-    await fake.seedRepo(`${NAME}-2`, { "other.txt": "unmarked" });
-    await fake.seedRepo(`${NAME}-3`, { [SHARD_MARKER_PATH]: marker() });
-    await fake.seedRepo(`${NAME}-4`, { [SHARD_MARKER_PATH]: marker("another-library") });
+    await fake.seedRepo(`${NAME}-part-1`, { [SHARD_MARKER_PATH]: marker(), "data/x": "x".repeat(2048) });
+    await fake.seedRepo(`${NAME}-part-2`, { "other.txt": "unmarked" });
+    await fake.seedRepo(`${NAME}-part-3`, { [SHARD_MARKER_PATH]: marker() });
+    await fake.seedRepo(`${NAME}-part-4`, { [SHARD_MARKER_PATH]: marker("another-library") });
     await fake.seedRepo("unrelated", { "a.txt": "a" });
 
     const recovered = await recoverShards(library);
 
-    expect(recovered.sort()).toEqual([`${NAME}-1`, `${NAME}-3`]);
-    expect(index().repos.map((r) => r.name)).toEqual([NAME, `${NAME}-1`, `${NAME}-3`]);
-    expect(index().repos.find((r) => r.name === `${NAME}-1`)!.usedBytes).toBeGreaterThan(1500);
+    expect(recovered.sort()).toEqual([`${NAME}-part-1`, `${NAME}-part-3`]);
+    expect(index().repos.map((r) => r.name)).toEqual([NAME, `${NAME}-part-1`, `${NAME}-part-3`]);
+    expect(index().repos.find((r) => r.name === `${NAME}-part-1`)!.usedBytes).toBeGreaterThan(1500);
   });
 
   it("does nothing when everything is already listed", async () => {
-    await fake.seedRepo(`${NAME}-1`, { [SHARD_MARKER_PATH]: marker() });
+    await fake.seedRepo(`${NAME}-part-1`, { [SHARD_MARKER_PATH]: marker() });
     await recoverShards(library);
     const commits = fake.commitCount(NAME);
 

@@ -12,9 +12,11 @@ const escapeRegExp = (text: string) =>
   text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const shardPattern = (primary: string) =>
-  new RegExp(`^${escapeRegExp(primary)}-(\\d+)$`);
+  new RegExp(`^${escapeRegExp(primary)}-part-(\\d+)$`);
 
-export const shardName = (primary: string, n: number) => `${primary}-${n}`;
+// Overflow repos are "<library>-part-<n>", so they never clash with another
+// library's name such as "project-music-files-2".
+export const shardName = (primary: string, n: number) => `${primary}-part-${n}`;
 
 export function nextShardNumber(index: LibraryIndex): number {
   const pattern = shardPattern(index.repos[0].name);
@@ -50,6 +52,8 @@ async function createShard(
   sleep: Sleep,
 ): Promise<RepoInfo> {
   const { api, owner } = library;
+  // An overflow repo is shared exactly like its library.
+  const isPrivate = (await api.getRepo(owner, primary))?.private ?? true;
 
   for (let n = startAt; n < startAt + MAX_NAME_TRIES; n++) {
     const name = shardName(primary, n);
@@ -57,12 +61,13 @@ async function createShard(
 
     if (existing) {
       if (isOurShard(await readMarker(library, name), primary)) {
+        if (existing.private !== isPrivate) await api.setRepoPrivate(owner, name, isPrivate);
         return { name, usedBytes: sizeEstimate(existing.size), full: false };
       }
       continue; // the name belongs to something else
     }
 
-    const created = await api.createRepo(name, `Madhuram music library, part ${n}`);
+    const created = await api.createRepo(name, `Madhuram music library, part ${n}`, isPrivate);
     await waitForHead(api, owner, name, created.default_branch, sleep);
     const marker: ShardMarker = { app: APP_MARKER, role: "shard", library: primary };
     await writeTextFile(

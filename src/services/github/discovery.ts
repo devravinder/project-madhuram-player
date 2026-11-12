@@ -5,6 +5,7 @@ import {
   NotLibraryIndexError,
   parseIndex,
   serializeIndex,
+  type IndexRole,
   type LibraryConfig,
   type LibraryIndex,
 } from "./indexTypes";
@@ -60,7 +61,7 @@ const writeIndex = (
     branch,
     INDEX_PATH,
     serializeIndex(index),
-    "Create library index",
+    index.role === "home" ? "Create home" : "Create library index",
   );
 
 // A new repository takes a moment before its first commit is readable.
@@ -77,28 +78,38 @@ export async function waitForHead(
   }
 }
 
-// Reuse a marked library, adopt an empty repo, create a missing one,
-// and never touch a repo that belongs to something else.
-export async function findOrCreateLibrary(
+// A library repo: songs, public or private as a whole.
+export const findOrCreateLibrary = (
   api: GithubApi,
   owner: string,
   repoName: string,
   config: LibraryConfig,
   sleep: Sleep = realSleep,
+) =>
+  findOrCreateRepo(api, owner, repoName, "library", () => createEmptyIndex(repoName, config), sleep);
+
+// Reuse a repo with the expected kind of index, adopt an empty repo, create
+// a missing one, and never touch a repo that belongs to something else.
+// `newIndex` makes the index for a created or adopted repo.
+export async function findOrCreateRepo(
+  api: GithubApi,
+  owner: string,
+  repoName: string,
+  role: IndexRole,
+  newIndex: () => LibraryIndex,
+  sleep: Sleep = realSleep,
 ): Promise<Discovery> {
   const repo = await api.getRepo(owner, repoName);
 
   if (!repo) {
-    const created = await api.createRepo(repoName, "Madhuram music library");
+    const created = await api.createRepo(
+      repoName,
+      role === "home" ? "Madhuram home: playlists and settings" : "Madhuram music library",
+    );
     await waitForHead(api, owner, repoName, created.default_branch, sleep);
-    const index = createEmptyIndex(repoName, config);
+    const index = newIndex();
     await writeIndex(api, owner, repoName, created.default_branch, index);
-    return {
-      status: "created",
-      repo: repoName,
-      branch: created.default_branch,
-      index,
-    };
+    return { status: "created", repo: repoName, branch: created.default_branch, index };
   }
 
   const head = await api.getHead(owner, repoName, repo.default_branch);
@@ -107,12 +118,9 @@ export async function findOrCreateLibrary(
     : null;
   if (existing) {
     try {
-      return {
-        status: "reused",
-        repo: repoName,
-        branch: repo.default_branch,
-        index: parseIndex(existing.text),
-      };
+      const index = parseIndex(existing.text);
+      if (index.role !== role) return { status: "name-taken", repo: repoName };
+      return { status: "reused", repo: repoName, branch: repo.default_branch, index };
     } catch (error) {
       if (error instanceof NotLibraryIndexError) {
         return { status: "name-taken", repo: repoName };
@@ -125,12 +133,7 @@ export async function findOrCreateLibrary(
   const isEmpty = !root || root.every((entry) => HARMLESS_ROOT_FILES.test(entry.path));
   if (!isEmpty) return { status: "name-taken", repo: repoName };
 
-  const index = createEmptyIndex(repoName, config);
+  const index = newIndex();
   await writeIndex(api, owner, repoName, repo.default_branch, index);
-  return {
-    status: "adopted",
-    repo: repoName,
-    branch: repo.default_branch,
-    index,
-  };
+  return { status: "adopted", repo: repoName, branch: repo.default_branch, index };
 }

@@ -81,3 +81,17 @@ files can be left out.
 - Automatic runs (app opens, connection returns, rate limit ends) only finish steps the
   user already started, or retry the exact job a pause interrupted. They never plan new
   uploads.
+
+## ADR-012: A private home repo and several libraries
+
+Users upload into a library they choose and share only the libraries they choose.
+
+- A **home** repo (private) holds playlists, followed libraries, the list of libraries and the
+  default. Making a library public never exposes anything personal.
+- A **library** holds songs and is public or private as a whole, overflow repos included,
+  because one song can be split across repos. Overflow repos are `<library>-part-N`, so
+  they never clash with another library named `<library>-N`.
+- Making a library public asks first, and says that anyone can download its songs and that
+  songs deleted earlier stay in the repo history.
+- "Copy link" copies a link to this app that opens the library in Explore.
+- The app was not released before this, so there is no migration from the single-repo layout.

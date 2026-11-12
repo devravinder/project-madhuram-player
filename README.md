@@ -8,18 +8,19 @@ installed like an app. It works offline, with no account and no server.
 - Your songs and videos are saved inside the browser on your device, so they play offline.
 - For backup, the app uses your own GitHub account as storage: it keeps your songs in
   private repositories that only you can see. Nothing goes to anyone else.
-- Anyone can share music by putting it in a public repository; others can play it by name.
+- Anyone can share a library by making it public in the app; others open its link to listen.
 
 ## How to use
 
 1. Without sign-in: tap "Try without login", then Import songs or videos. They stay on this
    device and play offline. Explore lets you play public libraries by `owner/repo`.
 2. With sign-in: paste a GitHub token with repo access. In Settings, GitHub backup:
-   - Nothing uploads by itself. Open "Not backed up" to upload one song or all of them
-     to your private `project-music-files` repo, leaving out large files if you like.
+   - Nothing uploads by itself. Open "Not backed up", pick a library, and upload one song
+     or all of them, leaving out large files if you like.
+   - Libraries: keep several (`project-music-files`, `-2`, ...). Make one public and use
+     "Copy link" to share it; the others stay private.
    - Sync brings in songs from your other devices; Download brings back removed ones.
-   - Big files are split into parts; a full repo continues in `project-music-files-1`, `-2`.
-   - Playlists and followed libraries sync by themselves. Removing the token keeps your music.
+   - Playlists sync by themselves to a private home repo. Removing the token keeps your music.
 
 ## For developers
 

@@ -143,12 +143,20 @@ export class GithubApi {
     return response ? response.json() : null;
   }
 
-  async createRepo(name: string, description: string): Promise<Repo> {
+  async createRepo(name: string, description: string, isPrivate = true): Promise<Repo> {
     const response = await this.request("/user/repos", {
       method: "POST",
-      body: { name, description, private: true, auto_init: true },
+      body: { name, description, private: isPrivate, auto_init: true },
     });
     return response.json();
+  }
+
+  // Needs the token's Administration permission, which the app already asks for.
+  async setRepoPrivate(owner: string, name: string, isPrivate: boolean): Promise<void> {
+    await this.request(`/repos/${owner}/${name}`, {
+      method: "PATCH",
+      body: { private: isPrivate },
+    });
   }
 
   async listOwnRepos(): Promise<Repo[]> {

@@ -42,14 +42,22 @@ export type SourceEntry = {
   removed?: boolean;
 };
 
+// The home repo is private and holds what is personal: playlists, followed
+// libraries and the list of the user's libraries. A library holds songs and
+// can be public or private as a whole, with its overflow repos.
+export type IndexRole = "home" | "library";
+
 export type LibraryIndex = {
   app: typeof APP_MARKER;
   schemaVersion: number;
+  role: IndexRole;
   config: LibraryConfig;
   repos: RepoInfo[];
   currentRepo: string;
   tracks: TrackEntry[];
-  sources: SourceEntry[]; // followed public libraries
+  sources: SourceEntry[]; // followed public libraries (home only)
+  libraries?: string[]; // the user's library repos (home only)
+  defaultLibrary?: string; // where uploads go unless chosen (home only)
   updatedAt: string;
 };
 
@@ -74,16 +82,31 @@ export function createEmptyIndex(
   repoName: string,
   config: LibraryConfig,
   now = new Date(),
+  role: IndexRole = "library",
 ): LibraryIndex {
   return {
     app: APP_MARKER,
     schemaVersion: SCHEMA_VERSION,
+    role,
     config,
     repos: [{ name: repoName, usedBytes: 0, full: false }],
     currentRepo: repoName,
     tracks: [],
     sources: [],
     updatedAt: now.toISOString(),
+  };
+}
+
+export function createHomeIndex(
+  repoName: string,
+  config: LibraryConfig,
+  firstLibrary: string,
+  now = new Date(),
+): LibraryIndex {
+  return {
+    ...createEmptyIndex(repoName, config, now, "home"),
+    libraries: [firstLibrary],
+    defaultLibrary: firstLibrary,
   };
 }
 
@@ -100,6 +123,7 @@ export function parseIndex(text: string): LibraryIndex {
   if (data.schemaVersion > SCHEMA_VERSION) {
     throw new UnsupportedIndexVersionError(data.schemaVersion);
   }
+  if (data.role !== "home" && data.role !== "library") throw new NotLibraryIndexError();
   return data as LibraryIndex;
 }
 

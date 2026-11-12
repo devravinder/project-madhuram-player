@@ -69,6 +69,7 @@ export type OutboxItem = {
   id: string; // `${op}:${trackId}`
   op: OutboxOp;
   trackId: string;
+  library: string; // the library repo this step works on
   status: "pending" | "running" | "failed";
   attempts: number;
   lastError?: string;
@@ -80,6 +81,7 @@ export type OutboxItem = {
 export type SyncRecord = {
   trackId: string;
   sha256: string;
+  library: string; // the library repo that holds the track
   // Removed from this device on purpose but kept on GitHub; a download
   // sync brings it back, other syncs leave it alone.
   deviceRemoved?: boolean;

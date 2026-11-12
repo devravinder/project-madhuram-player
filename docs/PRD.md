@@ -50,7 +50,7 @@ A personal media library that:
 - Streaming catalogs, recommendations or social features.
 - Converting or re-encoding media.
 - Editing track tags inside the app.
-- Making a user's storage public on their behalf.
+- Making storage public without the user asking, or making all of it public at once.
 - Offline play of a public library without an explicit download.
 - Languages other than English.
 - A guided "create my library" flow.

@@ -28,14 +28,24 @@ The UI never calls GitHub directly. Providers hide where a track lives, so a new
 
 ## Repositories and index
 
-The primary repo is `project-music-files`. When it fills up, the app creates
-`project-music-files-1`, and so on. The primary repo holds the index.
+Each signed-in user has one private **home** repo and one or more **library** repos.
+
+- **Home** (`project-music-home`, always private): playlists, followed libraries, the list
+  of libraries and which one is the default for uploads. Personal, so it is never shared.
+- **Library** (default `project-music-files`, more as `project-music-files-2`, `-3`, ...):
+  songs only. Public or private as a whole. When it fills up, the app adds overflow repos
+  `<library>-part-1`, `-part-2`, which take the library's visibility, so a listener can
+  always reach every part of every song.
 
 ```text
+project-music-home/
+├── index.json        # role "home": libraries, defaultLibrary, followed sources
+└── playlists.json    # playlists, merged per playlist by updatedAt
+
 project-music-files/
-├── index.json        # config, repos, tracks, tombstones, followed sources
-├── playlists.json    # playlists, merged per playlist by updatedAt
-└── manifests/<id>.json
+├── index.json        # role "library": config, repos, tracks, tombstones
+├── manifests/<id>.json
+└── data/<id[0:2]>/<id>/{media|cover}.<n>
 ```
 
 ```mermaid
@@ -46,6 +56,7 @@ erDiagram
   INDEX {
     string app
     int schemaVersion
+    string role
     string currentRepo
     int maxFileBytes
     int maxRepoBytes
@@ -82,11 +93,12 @@ flowchart TD
   F -->|no| H[Leave untouched, ask for another name]
 ```
 
-- **Valid** means `index.json` exists, carries the app marker and a known `schemaVersion`.
+- **Valid** means `index.json` exists, carries the app marker, a known `schemaVersion` and
+  the expected role. A home is never opened as a library, nor a library as the home.
 - A newer `schemaVersion` than the app knows opens read-only with an update prompt.
-- Shard repos come from `index.repos`. If the index is missing a shard, the app finds
-  `<name>-N` repos that carry the marker and offers to add them back.
-- The repo name is configurable. The default is `project-music-files`.
+- Overflow repos come from `index.repos`. If the index is missing one, the app finds
+  `<library>-part-N` repos that carry the marker and adds them back.
+- Repo names are configurable. The defaults are `project-music-home` and `project-music-files`.
 
 ## Size accounting
 
@@ -154,11 +166,13 @@ Settings has a "Remove token" action that works at any time, signed in or not.
 
 ## Sync
 
-Each track has a stable id and a SHA-256. Its state is local-only, remote-only or synced.
-Deletes are tombstones in the index so other devices remove the track too. Playlists sync
-automatically a few seconds after each change when signed in. In Settings, Sync works both
-ways, while Upload only sends new and changed tracks and Download only brings them in. Steps
-wait in a saved queue, so a lost connection, a rate limit or a reload only pauses them.
+Each track has a stable id and a SHA-256, and its sync record names the library that holds
+it. Its state is local-only, remote-only or synced. Deletes are tombstones in the library
+index so other devices remove the track too. Playlists sync automatically a few seconds
+after each change when signed in. In Settings, Sync works both ways across every library,
+and Download only brings tracks in. New tracks go up only from "Not backed up", into the
+library the user picks. Steps wait in a saved queue, so a lost connection, a rate limit or
+a reload only pauses them.
 
 ## Offline
 

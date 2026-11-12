@@ -13,7 +13,8 @@ function requiredNumber(name: string): number {
 }
 
 export const config = {
-  libraryRepoName: required("VITE_LIBRARY_REPO_NAME"),
+  libraryRepoName: required("VITE_LIBRARY_REPO_NAME"), // the first library
+  homeRepoName: required("VITE_HOME_REPO_NAME"), // private: playlists, library list
   maxFileBytes: requiredNumber("VITE_MAX_FILE_BYTES"),
   maxRepoBytes: requiredNumber("VITE_MAX_REPO_BYTES"),
   isDev: import.meta.env.DEV,

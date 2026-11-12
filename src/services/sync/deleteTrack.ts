@@ -3,7 +3,7 @@ import type { LibraryRepo } from "@/services/github/library";
 import { deleteSong } from "@/services/songsService";
 import { removeRemoteTrack } from "./remove";
 
-// True when the song has a copy in the GitHub library.
+// True when the song has a copy in one of the user's GitHub libraries.
 export const isBackedUp = async (trackId: string) =>
   !!(await db.syncState.get(trackId));
 
@@ -20,16 +20,20 @@ export async function removeFromDeviceOnly(trackId: string) {
 
 export type DeleteResult = "deleted" | "queued";
 
-// Deletes here, then on GitHub right away. If GitHub cannot be reached
-// the sync record stays, so the next full sync finishes the delete.
+// Deletes here, then right away in the library that holds the song. If
+// GitHub cannot be reached the sync record stays, so the next full sync
+// finishes the delete.
 export async function deleteEverywhere(
   trackId: string,
-  library: LibraryRepo | undefined,
+  libraries: LibraryRepo[] | undefined,
 ): Promise<DeleteResult> {
+  const record = await db.syncState.get(trackId);
   await deleteSong(trackId);
   await dropQueued(trackId);
   await db.syncState.update(trackId, { deviceRemoved: false });
-  if (!library) return "queued";
+
+  const library = libraries?.find((l) => l.repo === record?.library);
+  if (!record || !library) return "queued";
 
   try {
     await removeRemoteTrack(library, trackId);

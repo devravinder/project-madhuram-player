@@ -93,8 +93,9 @@ export class PublicLibrary {
     }
     if (!response.ok) throw new HttpError(response.status, `GitHub returned ${response.status}.`);
 
+    let index: LibraryIndex;
     try {
-      return parseIndex(await response.text());
+      index = parseIndex(await response.text());
     } catch (error) {
       if (error instanceof UnsupportedIndexVersionError) {
         throw new PublicLibraryError("unsupported", error.message);
@@ -104,6 +105,10 @@ export class PublicLibrary {
       }
       throw error;
     }
+    if (index.role !== "library") {
+      throw new PublicLibraryError("not-library", `${this.owner}/${this.repo} is not a Madhuram library.`);
+    }
+    return index;
   }
 
   async loadManifest(path: string): Promise<Manifest> {

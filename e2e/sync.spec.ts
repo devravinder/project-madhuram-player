@@ -14,8 +14,13 @@ const wipeDevice = (page: import("@playwright/test").Page) =>
     await Promise.all([db.songs.clear(), db.files.clear(), db.syncState.clear(), db.outbox.clear()]);
   });
 
+// The libraries list appears once Settings has connected.
+const librariesShown = (page: import("@playwright/test").Page) =>
+  expect(page.locator("li", { hasText: REPO }).first()).toBeVisible({ timeout: 15_000 });
+
 // New songs go to GitHub only from the "Not backed up" list in Settings.
 const uploadAll = async (page: import("@playwright/test").Page, count: number) => {
+  await librariesShown(page);
   await page.getByText(`Not backed up (${count})`).click();
   await page.getByRole("button", { name: "Upload all" }).click();
 };
@@ -28,7 +33,7 @@ test("backs a library up to GitHub and restores it on a fresh device", async ({ 
   ]);
 
   await page.goto("/#/settings");
-  await expect(page.getByRole("paragraph").filter({ hasText: `tester/${REPO}` })).toBeVisible();
+  await librariesShown(page);
   await page.getByRole("button", { name: "Sync", exact: true }).click();
   await expect(page.getByText("Up to date.")).toBeVisible({ timeout: 15_000 });
   expect(await remoteTitles(page)).toEqual([]); // a plain sync uploads nothing new
@@ -64,6 +69,7 @@ test("waits out a GitHub rate limit and carries on by itself", async ({ page }) 
   await signInWithFake(page);
   await importFiles(page, [{ name: "Gamma.wav", buffer: wavBuffer(2) }]);
   await page.goto("/#/settings");
+  await librariesShown(page);
 
   await page.evaluate(() => (window as any).__fake.limitNextWrites(1));
   await uploadAll(page, 1);
@@ -83,6 +89,15 @@ test("removing the token keeps the music and hides the backup", async ({ page })
 
   await expect(page.getByText("Not signed in")).toBeVisible();
   await expect(page.getByText("GitHub backup")).toBeHidden();
+
+  // The notice can be closed with the × at its top right.
+  const notice = page.locator("[data-sonner-toast]", { hasText: "Token removed" });
+  const close = notice.getByRole("button", { name: "Close toast" });
+  const [box, button] = [(await notice.boundingBox())!, (await close.boundingBox())!];
+  expect(button.x + button.width / 2).toBeGreaterThan(box.x + box.width / 2);
+  expect(button.y).toBeLessThan(box.y + box.height / 2);
+  await close.click();
+  await expect(notice).toBeHidden();
   expect(await page.evaluate(() => localStorage.getItem("madhuram.github.token"))).toBeNull();
   await page.goto("/#/library");
   await expect(page.getByText("1 songs")).toBeVisible();
@@ -143,7 +158,7 @@ test("carries on with unfinished sync steps when the app opens signed in", async
     const { default: db } = await import(/* @vite-ignore */ "/src/services/db.ts");
     const [song] = await db.songs.toArray();
     await db.outbox.add({
-      id: `push:${song.id}`, op: "push", trackId: song.id, status: "running",
+      id: `push:${song.id}`, op: "push", trackId: song.id, library: "project-music-files", status: "running",
       attempts: 0, nextAttemptAt: 0, createdAt: Date.now(),
     });
   });
@@ -179,19 +194,62 @@ test("uploads just the chosen song and nothing after import", async ({ page }) =
   await expect(page.getByRole("button", { name: "Upload Huge" })).toBeVisible();
 });
 
-test("explains how to share the library, collapsed until asked", async ({ page }) => {
+test("uploads into a chosen library and shares only that one", async ({ page, context }) => {
+  const { routeRawToFake } = await import("./fixtures");
+  const SHARED = `${REPO}-2`;
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await signInWithFake(page);
+  await routeRawToFake(context, page);
+  await importFiles(page, [
+    { name: "Mine.wav", buffer: wavBuffer(2) },
+    { name: "For Friends.wav", buffer: wavBuffer(2, 5) },
+  ]);
   await page.goto("/#/settings");
+  await librariesShown(page);
+  await expect(page.getByText("How do I share my music?")).toHaveCount(0); // replaced by the list
 
-  const help = page.getByText("How do I share my music?");
-  await expect(help).toBeVisible();
-  await expect(page.getByText("Change visibility", { exact: false })).toBeHidden();
+  // A second library, with the next free name suggested.
+  await page.getByRole("button", { name: "Add library" }).click();
+  await expect(page.getByLabel("New library name")).toHaveValue(SHARED);
+  await page.getByRole("button", { name: "Create" }).click();
+  await expect(page.locator("li", { hasText: SHARED })).toBeVisible({ timeout: 15_000 });
 
-  await help.click();
-  await expect(page.getByText("Change visibility", { exact: false })).toBeVisible();
-  await expect(page.locator("span.font-mono", { hasText: `tester/${REPO}` })).toBeVisible();
-  await expect(page.getByRole("link", { name: "your library's settings on GitHub" })).toHaveAttribute(
-    "href",
-    `https://github.com/tester/${REPO}/settings`,
-  );
+  // One song into each library.
+  await page.getByText("Not backed up (2)").click();
+  await page.getByLabel("Library").selectOption(SHARED);
+  await page.getByRole("button", { name: "Upload For Friends" }).click();
+  await expect(page.getByText("Synced 1.")).toBeVisible({ timeout: 20_000 });
+  await page.getByLabel("Library").selectOption(REPO);
+  await page.getByRole("button", { name: "Upload Mine" }).click();
+  await expect(page.getByText("Every song is backed up.")).toBeVisible({ timeout: 20_000 });
+  const titlesIn = (repo: string) =>
+    page.evaluate((r) => {
+      const index = JSON.parse((window as any).__fake.fileText(r, "index.json"));
+      return index.tracks.map((t: any) => t.title);
+    }, repo);
+  expect(await titlesIn(SHARED)).toEqual(["For Friends"]);
+  expect(await titlesIn(REPO)).toEqual(["Mine"]);
+
+  // Share only the second library, after a clear warning.
+  page.once("dialog", (dialog) => {
+    expect(dialog.message()).toContain("Anyone with the link");
+    void dialog.accept();
+  });
+  await page.getByRole("button", { name: `Make ${SHARED} public` }).click();
+  await expect(page.getByRole("button", { name: `Make ${SHARED} private`, exact: true })).toBeVisible({ timeout: 15_000 });
+  const isPrivate = (repo: string) =>
+    page.evaluate((r) => (window as any).__fake.repos.get(r).private, repo);
+  expect(await isPrivate(SHARED)).toBe(false);
+  expect(await isPrivate(REPO)).toBe(true);
+  expect(await isPrivate("project-music-home")).toBe(true);
+  await expect(page.getByRole("button", { name: `Copy link to ${REPO}`, exact: true })).toHaveCount(0);
+
+  await page.getByRole("button", { name: `Copy link to ${SHARED}` }).click();
+  await expect(page.getByText("Link copied")).toBeVisible();
+  const link = await page.evaluate(() => navigator.clipboard.readText());
+  expect(link).toMatch(new RegExp(`#/explore/tester/${SHARED}$`));
+
+  // The link opens the shared songs (same page, so the test GitHub stays).
+  await page.evaluate((url) => (window.location.href = url), link);
+  await expect(page.getByText("For Friends", { exact: true })).toBeVisible({ timeout: 15_000 });
 });

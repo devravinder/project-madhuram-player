@@ -1,50 +1,79 @@
 import { FakeGithub } from "@/testing/fakeGithub";
 import { describe, expect, it } from "vitest";
-import { LibraryNameTakenError, openLibrary } from "./session";
+import { GithubApi } from "./api";
+import { parseIndex } from "./indexTypes";
+import {
+  homeInfo,
+  LibraryNameTakenError,
+  openHome,
+  openLibrary,
+  saveLibrary,
+  setDefaultLibrary,
+  suggestLibraryName,
+} from "./session";
 
 const config = { maxFileBytes: 50, maxRepoBytes: 800 };
 const noSleep = async () => {};
+const HOME = "project-music-home";
+const LIB = "project-music-files";
 
-const open = (fake: FakeGithub, repoName = "project-music-files") =>
-  openLibrary({
-    token: fake.token,
-    login: fake.login,
-    repoName,
-    config,
-    fetchFn: fake.fetch,
-    sleep: noSleep,
+const optionsFor = (fake: FakeGithub, fetchFn: typeof fetch = fake.fetch) => ({
+  api: new GithubApi(fake.token, fetchFn),
+  login: fake.login,
+  config,
+  sleep: noSleep,
+});
+
+describe("openHome", () => {
+  it("creates a private home listing the first library", async () => {
+    const fake = new FakeGithub();
+    const home = await openHome(optionsFor(fake), HOME, LIB);
+
+    const { index } = await home.read();
+    expect(index.role).toBe("home");
+    expect(homeInfo(index)).toEqual({ libraries: [LIB], defaultLibrary: LIB });
+    expect(fake.repos.get(HOME)?.private).toBe(true);
   });
+
+  it("reuses the home on the next sign-in", async () => {
+    const fake = new FakeGithub();
+    await openHome(optionsFor(fake), HOME, LIB);
+    const commits = fake.commitCount(HOME);
+
+    await openHome(optionsFor(fake), HOME, LIB);
+    expect(fake.commitCount(HOME)).toBe(commits);
+  });
+
+  it("never takes a music library as the home", async () => {
+    const fake = new FakeGithub();
+    await openLibrary(optionsFor(fake), HOME);
+
+    await expect(openHome(optionsFor(fake), HOME, LIB)).rejects.toBeInstanceOf(LibraryNameTakenError);
+  });
+});
 
 describe("openLibrary", () => {
-  it("creates the library for a new account and can read it back", async () => {
+  it("creates a private library that can be read back", async () => {
     const fake = new FakeGithub();
-    const { library, status } = await open(fake);
+    const library = await openLibrary(optionsFor(fake), LIB);
 
-    expect(status).toBe("created");
-    expect((await library.read()).index.config).toEqual(config);
-  });
-
-  it("reuses the library on the next sign-in", async () => {
-    const fake = new FakeGithub();
-    await open(fake);
-
-    expect((await open(fake)).status).toBe("reused");
+    expect((await library.read()).index).toMatchObject({ role: "library", config });
+    expect(fake.repos.get(LIB)?.private).toBe(true);
   });
 
   it("reports a name that belongs to another project", async () => {
     const fake = new FakeGithub();
-    await fake.seedRepo("project-music-files", { "app.ts": "code" });
+    await fake.seedRepo(LIB, { "app.ts": "code" });
 
-    await expect(open(fake)).rejects.toBeInstanceOf(LibraryNameTakenError);
+    await expect(openLibrary(optionsFor(fake), LIB)).rejects.toBeInstanceOf(LibraryNameTakenError);
+    expect(fake.paths(LIB)).toEqual(["app.ts"]);
   });
 
-  it("works with another repo name after a clash", async () => {
+  it("never takes the home as a library", async () => {
     const fake = new FakeGithub();
-    await fake.seedRepo("project-music-files", { "app.ts": "code" });
+    await openHome(optionsFor(fake), HOME, LIB);
 
-    const { status } = await open(fake, "my-music");
-    expect(status).toBe("created");
-    expect(fake.paths("project-music-files")).toEqual(["app.ts"]);
+    await expect(openLibrary(optionsFor(fake), HOME)).rejects.toBeInstanceOf(LibraryNameTakenError);
   });
 
   // Regression: GitHub sends max-age=60, so a browser cached the branch
@@ -63,23 +92,38 @@ describe("openLibrary", () => {
       return response;
     };
 
-    const { library } = await openLibrary({
-      token: fake.token,
-      login: fake.login,
-      repoName: "project-music-files",
-      config,
-      fetchFn: cachingFetch,
-      sleep: noSleep,
-    });
+    const library = await openLibrary(optionsFor(fake, cachingFetch), LIB);
     expect((await library.read()).index.config).toEqual(config);
     expect(await library.readText("playlists.json")).toBeUndefined();
   });
+});
 
-  it("does not ask for files that a new library does not have yet", async () => {
+describe("the list of libraries", () => {
+  it("adds a library, keeps the default, and can change it", async () => {
     const fake = new FakeGithub();
-    const { library } = await open(fake);
-    await library.readText("playlists.json");
+    const home = await openHome(optionsFor(fake), HOME, LIB);
 
-    expect(fake.requests.filter((r) => r.includes("/contents/"))).toEqual([]);
+    expect(await saveLibrary(home, `${LIB}-2`)).toEqual({
+      libraries: [LIB, `${LIB}-2`],
+      defaultLibrary: LIB,
+    });
+    expect(await setDefaultLibrary(home, `${LIB}-2`)).toMatchObject({ defaultLibrary: `${LIB}-2` });
+    expect(parseIndex(fake.fileText(HOME, "index.json")!).defaultLibrary).toBe(`${LIB}-2`);
+  });
+
+  it("replaces a taken name, default included", async () => {
+    const fake = new FakeGithub();
+    const home = await openHome(optionsFor(fake), HOME, LIB);
+
+    expect(await saveLibrary(home, "my-music", LIB)).toEqual({
+      libraries: ["my-music"],
+      defaultLibrary: "my-music",
+    });
+  });
+
+  it("suggests the next free name", () => {
+    expect(suggestLibraryName(LIB, [])).toBe(LIB);
+    expect(suggestLibraryName(LIB, [LIB])).toBe(`${LIB}-2`);
+    expect(suggestLibraryName(LIB, [LIB, `${LIB}-2`])).toBe(`${LIB}-3`);
   });
 });

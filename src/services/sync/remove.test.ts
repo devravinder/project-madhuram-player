@@ -12,7 +12,7 @@ import { FakeGithub } from "@/testing/fakeGithub";
 import { makeFile, randomBytes } from "@/testing/files";
 import { beforeEach, describe, expect, it } from "vitest";
 import { deleteEverywhere, isBackedUp, removeFromDeviceOnly } from "./deleteTrack";
-import { syncNow, type SyncContext, type SyncMode } from "./engine";
+import { syncNow, uploadTracks, type SyncContext, type SyncMode } from "./engine";
 import { removeRemoteTrack } from "./remove";
 import { uploadTrack } from "./upload";
 import { createPlaylist, getPlaylists } from "@/services/playlistService";
@@ -35,6 +35,8 @@ let ctx: SyncContext;
 
 const index = () => parseIndex(fake.fileText(NAME, "index.json")!);
 const sync = (mode: SyncMode = "both") => syncNow(ctx, {}, mode);
+const uploadAll = async () =>
+  uploadTracks(ctx, (await deviceProvider.listTracks()).map((t) => t.id), NAME);
 const addLocal = (id: string, size: number, seed = 1) =>
   deviceProvider.writeTrack(meta(id), { media: makeFile(`${id}.mp3`, randomBytes(size, seed)) });
 const wipeDevice = () =>
@@ -54,7 +56,7 @@ beforeEach(async () => {
     offline ? Promise.reject(new TypeError("offline")) : fake.fetch(input, init),
   );
   library = new LibraryRepo(api, fake.login, NAME, "main", noSleep);
-  ctx = { library, device: deviceProvider, upload: { sleep: noSleep } };
+  ctx = { libraries: [library], device: deviceProvider, upload: { sleep: noSleep } };
   await wipeDevice();
 });
 
@@ -76,7 +78,7 @@ describe("removeRemoteTrack", () => {
     await uploadTrack(library, meta("aa1"), { media: makeFile("a.bin", randomBytes(200, 1)) });
     await uploadTrack(library, meta("bb2"), { media: makeFile("b.bin", randomBytes(300, 2)) }, { sleep: noSleep });
     // 300 bytes is more than one repo holds: it spans two overflow repos.
-    const shards = [`${NAME}-1`, `${NAME}-2`];
+    const shards = [`${NAME}-part-1`, `${NAME}-part-2`];
     for (const shard of shards) expect(trackPaths(shard, "bb2").length).toBeGreaterThan(0);
 
     await removeRemoteTrack(library, "bb2");
@@ -101,9 +103,9 @@ describe("removeRemoteTrack", () => {
 describe("deleting a backed-up song", () => {
   it("delete everywhere removes it from GitHub at once", async () => {
     await addLocal("aa1", 50);
-    await sync("upload");
+    await uploadAll();
 
-    expect(await deleteEverywhere("aa1", library)).toBe("deleted");
+    expect(await deleteEverywhere("aa1", [library])).toBe("deleted");
 
     expect(await db.songs.count()).toBe(0);
     expect(trackPaths(NAME, "aa1")).toEqual([]);
@@ -113,10 +115,10 @@ describe("deleting a backed-up song", () => {
 
   it("delete everywhere while offline finishes on the next sync", async () => {
     await addLocal("aa1", 50);
-    await sync("upload");
+    await uploadAll();
     offline = true;
 
-    expect(await deleteEverywhere("aa1", library)).toBe("queued");
+    expect(await deleteEverywhere("aa1", [library])).toBe("queued");
     expect(await db.songs.count()).toBe(0);
 
     offline = false;
@@ -128,13 +130,13 @@ describe("deleting a backed-up song", () => {
   it("remove from this device keeps it on GitHub until a download sync", async () => {
     await addLocal("aa1", 50);
     await addLocal("bb2", 50, 2);
-    await sync("upload");
+    await uploadAll();
     await createPlaylist({ name: "Mix", description: "", songIds: ["aa1", "bb2"] });
 
     await removeFromDeviceOnly("aa1");
 
     expect(await sync()).toMatchObject({ queued: 0 }); // no pull, no delete
-    expect(await sync("upload")).toMatchObject({ queued: 0 });
+    expect(await syncNow(ctx, {}, "both")).toMatchObject({ queued: 0 });
     expect(trackPaths(NAME, "aa1")).toHaveLength(2);
     expect((await getPlaylists()).find((p) => p.name === "Mix")?.songIds).toEqual(["aa1", "bb2"]);
 

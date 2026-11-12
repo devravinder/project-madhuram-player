@@ -76,3 +76,7 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 - [x] No automatic uploads; Settings lists songs not backed up, upload one or all
 - [x] Player redesign: fits every screen, main controls only, the rest under "More options"
 - [x] Tap controls on the cover and video (±15s, play), double tap jumps 10s, fullscreen on video
+- [x] Playback speed, share guide, shorter sync messages, bottom bar clear of phone edges
+- [x] Wide videos stay landscape in phone fullscreen
+- [x] Several libraries: upload into a chosen one, share only chosen ones, copy link; private home repo for playlists
+- [x] Notifications can be closed with ×; in-app confirmations instead of browser pop-ups

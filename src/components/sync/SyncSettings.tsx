@@ -3,9 +3,9 @@ import { useSync, type LastRun } from "@/context/SyncContext";
 import { useAuth } from "@/hooks/useAuth";
 import { authStore } from "@/services/github/authStore";
 import { CloudDownload, RefreshCcw, Square } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import NotBackedUp from "./NotBackedUp";
-import ShareHelp from "./ShareHelp";
+import Libraries from "./Libraries";
 
 const STOP_TEXT = {
   offline: "Offline. Will sync when back online.",
@@ -22,30 +22,24 @@ function summarize(last: LastRun | undefined) {
   return `Synced ${last.done}${failed}.`;
 }
 
-function RepoNameForm({ taken }: { taken?: string }) {
-  const { changeRepoName, sync } = useSync();
+// Shown when a library name belongs to a repo that is not a music library.
+function RepoNameForm({ taken }: { taken: string }) {
+  const { replaceTakenLibrary } = useSync();
   const [name, setName] = useState("");
-  const [invalid, setInvalid] = useState(false);
+  const [problem, setProblem] = useState<string>();
 
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (changeRepoName(name)) {
-      setInvalid(false);
-      void sync();
-    } else {
-      setInvalid(true);
-    }
+    setProblem(await replaceTakenLibrary(name));
   };
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-2">
       <p role="alert" className="text-sm text-destructive">
-        {taken
-          ? `A repository named ${taken} already exists and is not a Madhuram library. Choose another name.`
-          : "Choose a repository name."}
+        {taken} already exists and is not a music library. Choose another name.
       </p>
       <label htmlFor="repo-name" className="text-sm font-medium">
-        Library repository name
+        Library name
       </label>
       <Input
         id="repo-name"
@@ -55,9 +49,9 @@ function RepoNameForm({ taken }: { taken?: string }) {
         autoComplete="off"
         spellCheck={false}
       />
-      {invalid && (
+      {problem && (
         <p role="alert" className="text-sm text-destructive">
-          Use letters, numbers, dots, dashes or underscores.
+          {problem}
         </p>
       )}
       <Button.Primary type="submit" disabled={!name.trim()} className="text-base justify-center">
@@ -74,7 +68,6 @@ export default function SyncSettings() {
     error,
     nameTaken,
     last,
-    repoName,
     waiting,
     failedItems,
     sync,
@@ -82,9 +75,16 @@ export default function SyncSettings() {
     retryFailed,
     resumeAt,
     keptOnGithub,
+    loadLibraries,
   } = useSync();
 
-  if (status !== "signed-in") return null;
+  // Opening the screen connects, so the libraries can be shown.
+  const signedIn = status === "signed-in";
+  useEffect(() => {
+    if (signedIn) void loadLibraries();
+  }, [signedIn, loadLibraries]);
+
+  if (!signedIn) return null;
 
   const busy = phase !== "idle";
   const statusText = busy
@@ -104,9 +104,7 @@ export default function SyncSettings() {
         <h2 id="sync-title" className="font-medium">
           GitHub backup
         </h2>
-        <p className="text-sm text-muted-foreground">
-          {user?.login}/{repoName}
-        </p>
+        <p className="text-sm text-muted-foreground">{user?.login}</p>
       </div>
 
       {nameTaken && <RepoNameForm taken={nameTaken} />}
@@ -184,7 +182,7 @@ export default function SyncSettings() {
         </div>
       )}
 
-      <ShareHelp owner={user?.login ?? "you"} repo={repoName} />
+      <Libraries />
     </section>
   );
 }

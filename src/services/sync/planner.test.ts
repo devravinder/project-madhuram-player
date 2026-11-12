@@ -22,7 +22,7 @@ const remote = (id: string, sha: string, extra: Partial<TrackEntry> = {}): Track
   manifest: `manifests/${id}.json`, ...extra,
 });
 
-const record = (trackId: string, sha256: string) => ({ trackId, sha256 });
+const record = (trackId: string, sha256: string) => ({ trackId, sha256, library: "lib" });
 
 describe("planSync", () => {
   it("pushes a new local track", () => {

@@ -174,6 +174,10 @@ export class FakeGithub {
     if (owner !== this.login || !repo) return failure(404, "Not Found");
 
     if (method === "GET" && rest === "") return json(this.repoJson(repo));
+    if (method === "PATCH" && rest === "") {
+      if (typeof body?.private === "boolean") repo.private = body.private;
+      return json(this.repoJson(repo));
+    }
 
     if (method === "PUT" && rest.startsWith("/contents/")) {
       const file = decodeURIComponent(rest.slice(10));

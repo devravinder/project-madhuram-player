@@ -43,7 +43,7 @@ export function stopReasonOf(
 export const outbox = {
   // Queuing the same step twice does nothing. Returns how many were new.
   async enqueue(
-    steps: { op: OutboxOp; trackId: string }[],
+    steps: { op: OutboxOp; trackId: string; library: string }[],
     now = Date.now(),
   ): Promise<number> {
     let added = 0;
@@ -54,6 +54,7 @@ export const outbox = {
         id,
         op: step.op,
         trackId: step.trackId,
+        library: step.library,
         status: "pending",
         attempts: 0,
         nextAttemptAt: 0,

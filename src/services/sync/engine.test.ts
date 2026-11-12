@@ -52,7 +52,11 @@ const restore = async (s: Awaited<ReturnType<typeof snapshot>>) => {
 const remoteIndex = () => parseIndex(fake.fileText(NAME, "index.json")!);
 const sync = (options = {}, mode: SyncMode = "both") => syncNow(ctx, options, mode);
 // New tracks go to GitHub only when the user uploads them.
-const upload = (options = {}) => sync(options, "upload");
+const upload = async (options = {}) => {
+  const recorded = new Set(await db.syncState.toCollection().primaryKeys());
+  const ids = (await deviceProvider.listTracks()).map((t) => t.id).filter((id) => !recorded.has(id));
+  return uploadTracks(ctx, ids, NAME, options);
+};
 
 beforeEach(async () => {
   offline = false;
@@ -69,7 +73,7 @@ beforeEach(async () => {
   const found = await findOrCreateLibrary(api, fake.login, NAME, config, noSleep);
   if (found.status === "name-taken") throw new Error("unexpected");
   ctx = {
-    library: new LibraryRepo(api, fake.login, NAME, found.branch),
+    libraries: [new LibraryRepo(api, fake.login, NAME, found.branch)],
     device: deviceProvider,
     upload: { sleep: noSleep },
   };
@@ -128,7 +132,7 @@ describe("syncNow", () => {
     await addLocal("small", 40);
     await addLocal("large", 250, 2);
 
-    const result = await uploadTracks(ctx, ["small"]);
+    const result = await uploadTracks(ctx, ["small"], NAME);
 
     expect(result).toMatchObject({ queued: 1, done: 1 });
     expect(remoteIndex().tracks.map((t) => t.id)).toEqual(["small"]);
@@ -138,7 +142,7 @@ describe("syncNow", () => {
   it("finishes queued steps without planning new uploads", async () => {
     await addLocal("queued", 40);
     await addLocal("not-chosen", 40, 2);
-    await outbox.enqueue([{ op: "push", trackId: "queued" }]);
+    await outbox.enqueue([{ op: "push", trackId: "queued", library: NAME }]);
 
     const result = await resumeQueued(ctx);
 
@@ -242,7 +246,7 @@ describe("syncNow", () => {
     expect((await outbox.list())[0]).toMatchObject({ status: "failed" });
   });
 
-  it("upload only sends new tracks and leaves everything else queued for later", async () => {
+  it("uploading sends only new tracks and brings nothing in", async () => {
     await addLocal("here", 40);
     await upload(); // here -> remote
     const deviceA = await snapshot();
@@ -254,7 +258,7 @@ describe("syncNow", () => {
     await restore(deviceA); // device A again: has "here", lacks "only-b"
     await addLocal("only-a", 40, 4);
 
-    const result = await sync({}, "upload");
+    const result = await upload();
 
     expect(result.done).toBe(1); // only-a was pushed
     expect((await deviceProvider.listTracks()).map((t) => t.id).sort()).toEqual(["here", "only-a"]);
@@ -282,7 +286,7 @@ describe("syncNow", () => {
 
   it("skips a push if the track was deleted while queued", async () => {
     await addLocal("aa1", 40);
-    await outbox.enqueue([{ op: "push", trackId: "aa1" }]);
+    await outbox.enqueue([{ op: "push", trackId: "aa1", library: NAME }]);
     await deviceProvider.removeTrack("aa1");
 
     const result = await sync();
