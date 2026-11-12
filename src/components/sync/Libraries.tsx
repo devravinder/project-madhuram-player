@@ -2,6 +2,7 @@ import { Button, Input } from "@/components/Elements";
 import { config } from "@/config";
 import { useSync, type LibraryInfo } from "@/context/SyncContext";
 import { suggestLibraryName } from "@/services/github/session";
+import { confirmToast } from "@/services/confirmToast";
 import { shareLink } from "@/services/shareLink";
 import { formatBytes } from "@/services/storageUsage";
 import { Globe, Link2, Lock, Plus } from "lucide-react";
@@ -19,18 +20,21 @@ async function copyLink(owner: string, library: string) {
   }
 }
 
-const SHARE_WARNING =
-  "Make this library public?\n\n" +
-  "Anyone with the link can play and download its songs.\n" +
-  "Songs deleted earlier can still be found in its history on GitHub.\n" +
-  "Share only music you have the right to share.";
-
 function LibraryRow({ library, owner }: { library: LibraryInfo; owner: string }) {
   const { setLibraryVisibility, setDefaultLibrary, changingLibrary } = useSync();
   const changing = changingLibrary === library.name;
 
-  const toggle = () => {
-    if (library.isPrivate && !window.confirm(SHARE_WARNING)) return;
+  const toggle = async () => {
+    if (library.isPrivate) {
+      const yes = await confirmToast({
+        title: `Make ${library.name} public?`,
+        description:
+          "Anyone with the link can play and download its songs. Songs deleted earlier can still be found in its GitHub history. Share only music you have the right to share.",
+        confirmLabel: "Make public",
+        destructive: true,
+      });
+      if (!yes) return;
+    }
     void setLibraryVisibility(library.name, !library.isPrivate);
   };
 
@@ -53,7 +57,7 @@ function LibraryRow({ library, owner }: { library: LibraryInfo; owner: string })
       <div className="flex flex-wrap gap-2 pl-6">
         <button
           type="button"
-          onClick={toggle}
+          onClick={() => void toggle()}
           disabled={changing}
           aria-label={library.isPrivate ? `Make ${library.name} public` : `Make ${library.name} private`}
           className="cursor-pointer px-2 py-1 rounded-md text-sm bg-accent hover:bg-accent/80 disabled:opacity-60"

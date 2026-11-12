@@ -2,6 +2,7 @@ import { FAVOURITE_PLAYLIST_ID, RECENT_PLAYLIST_ID } from "@/constants";
 import { usePlaylists } from "@/context/PlaylistContext";
 import { useSync } from "@/context/SyncContext";
 import { getPlaylists, updatePlaylist } from "@/services/playlistService";
+import { confirmToast } from "@/services/confirmToast";
 import { deleteSong, getSong } from "@/services/songsService";
 import { isBackedUp, removeFromDeviceOnly } from "@/services/sync/deleteTrack";
 import type { Playlist } from "@/types/music";
@@ -39,23 +40,33 @@ const SongActions = ({
 
     const backedUp = await isBackedUp(id);
 
+    const title = (await getSong(id))?.title ?? "this song";
+
     if (backedUp && signedIn) {
-      setAsking((await getSong(id))?.title ?? "this song");
+      setAsking(title);
       return;
     }
 
     if (backedUp) {
       // Signed out: the GitHub copy is kept, so signing in later does not delete it.
-      const yes = window.confirm(
-        "Remove this song from this device? Its copy on GitHub is kept; a Download sync brings it back.",
-      );
+      const yes = await confirmToast({
+        title: `Remove “${title}” from this device?`,
+        description: "Its copy on GitHub is kept. Download brings it back.",
+        confirmLabel: "Remove",
+        destructive: true,
+      });
       if (!yes) return;
       await removeFromDeviceOnly(id);
       afterDelete(false);
       return;
     }
 
-    const yes = window.confirm("Really want to delete");
+    const yes = await confirmToast({
+      title: `Delete “${title}”?`,
+      description: "It is removed from this device.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
 
     if (yes) {
       await deleteSong(id);

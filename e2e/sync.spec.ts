@@ -84,8 +84,9 @@ test("removing the token keeps the music and hides the backup", async ({ page })
   await importFiles(page, [{ name: "Delta.wav", buffer: wavBuffer(2) }]);
   await page.goto("/#/settings");
 
-  page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Remove token" }).click();
+  const ask = page.locator("[data-sonner-toast]", { hasText: "Remove the GitHub token" });
+  await ask.getByRole("button", { name: "Remove", exact: true }).click();
 
   await expect(page.getByText("Not signed in")).toBeVisible();
   await expect(page.getByText("GitHub backup")).toBeHidden();
@@ -231,11 +232,10 @@ test("uploads into a chosen library and shares only that one", async ({ page, co
   expect(await titlesIn(REPO)).toEqual(["Mine"]);
 
   // Share only the second library, after a clear warning.
-  page.once("dialog", (dialog) => {
-    expect(dialog.message()).toContain("Anyone with the link");
-    void dialog.accept();
-  });
   await page.getByRole("button", { name: `Make ${SHARED} public` }).click();
+  const warning = page.locator("[data-sonner-toast]", { hasText: `Make ${SHARED} public?` });
+  await expect(warning).toContainText("Anyone with the link");
+  await warning.getByRole("button", { name: "Make public" }).click();
   await expect(page.getByRole("button", { name: `Make ${SHARED} private`, exact: true })).toBeVisible({ timeout: 15_000 });
   const isPrivate = (repo: string) =>
     page.evaluate((r) => (window as any).__fake.repos.get(r).private, repo);
@@ -252,4 +252,24 @@ test("uploads into a chosen library and shares only that one", async ({ page, co
   // The link opens the shared songs (same page, so the test GitHub stays).
   await page.evaluate((url) => (window.location.href = url), link);
   await expect(page.getByText("For Friends", { exact: true })).toBeVisible({ timeout: 15_000 });
+});
+
+test("deleting a song that is not backed up asks in the app, and Cancel keeps it", async ({ page }) => {
+  const { tryWithoutLogin, songRow } = await import("./fixtures");
+  await tryWithoutLogin(page);
+  await importFiles(page, [{ name: "Keep Me.wav", buffer: wavBuffer(2) }]);
+
+  const ask = async () => {
+    await songRow(page, "Keep Me").locator('[aria-haspopup="menu"]').click();
+    await page.getByRole("menuitem", { name: "Delete" }).click();
+    return page.locator("[data-sonner-toast]", { hasText: "Delete “Keep Me”?" });
+  };
+
+  const first = await ask();
+  await first.getByRole("button", { name: "Cancel" }).click();
+  await expect(first).toHaveCount(0); // Cancel closes the notice
+  await expect(page.getByText("1 songs")).toBeVisible();
+
+  await (await ask()).getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(page.getByText("0 songs")).toBeVisible();
 });

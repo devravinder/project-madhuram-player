@@ -9,6 +9,7 @@ import type {
   SyncRecord,
 } from "@/types/music";
 import { DB_NAME } from "@/constants";
+import { confirmToast } from "./confirmToast";
 
 export const COLLECTIONS = {
   PLAYLIST_COLLECTION: "playlists",
@@ -127,8 +128,9 @@ export const clearData = async (reload: boolean = true) => {
   if (reload) window.location.reload(); // recreate with latest version
 };
 
-export const clearDataWithPrompt = async (message: string) => {
-  const reset = window.confirm(message);
+// Asks in an in-app notice, never a browser pop-up.
+export const clearDataWithPrompt = async (question: { title: string; description: string; confirmLabel: string }) => {
+  const reset = await confirmToast({ ...question, destructive: true });
 
   if (reset) {
     await clearData();
@@ -144,10 +146,15 @@ export async function initDB() {
     console.error("DB upgrade failed:", error);
 
     if (error?.name === "UpgradeError") {
-      await clearDataWithPrompt(
-        "Database upgrade failed.\n" +
-          "Old data is incompatible.\n\n" +
-          "Do you want to reset database?"
+      // The question waits for the app to be on screen, where notices show.
+      setTimeout(
+        () =>
+          void clearDataWithPrompt({
+            title: "Saved data could not be upgraded",
+            description: "It is not compatible with this version. Reset the data on this device?",
+            confirmLabel: "Reset",
+          }),
+        1000,
       );
     }
   }

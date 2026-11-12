@@ -16,6 +16,11 @@ export const test = base.extend({
   page: async ({ page }, use) => {
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
+    // The app asks in its own notices; a browser pop-up is a bug.
+    page.on("dialog", (dialog) => {
+      errors.push(`browser ${dialog.type()} pop-up: ${dialog.message()}`);
+      void dialog.dismiss();
+    });
     // Only the PWA notice; a dispatched click still lands while an open
     // menu blocks pointer events outside itself.
     const notice = page

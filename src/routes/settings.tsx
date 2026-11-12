@@ -16,6 +16,7 @@ import ThemeToggle from "@/components/ThemeToggle";
 import { useDevTools } from "@/context/DevToolContext";
 import { useAuth } from "@/hooks/useAuth";
 import { clearDataWithPrompt } from "@/services/db";
+import { confirmToast } from "@/services/confirmToast";
 import { authStore } from "@/services/github/authStore";
 import { TOKEN_SETTINGS_URL } from "@/services/github/githubClient";
 import { createFileRoute } from "@tanstack/react-router";
@@ -33,8 +34,14 @@ function RouteComponent() {
   const { toggleDevTools } = useDevTools();
   const { status, user } = useAuth();
 
-  const removeToken = () => {
-    if (!window.confirm("Remove the GitHub token from this device?")) return;
+  const removeToken = async () => {
+    const yes = await confirmToast({
+      title: "Remove the GitHub token from this device?",
+      description: "Your music stays here. Backup stops until you sign in again.",
+      confirmLabel: "Remove",
+      destructive: true,
+    });
+    if (!yes) return;
     authStore.removeToken();
     toast("Token removed from this device", {
       description: "To revoke it fully, also delete it on GitHub.",
@@ -63,7 +70,7 @@ function RouteComponent() {
                     : "Not signed in"}
                 </span>
                 {status === "signed-in" ? (
-                  <IconButton aria-label="Remove token" onClick={removeToken}>
+                  <IconButton aria-label="Remove token" onClick={() => void removeToken()}>
                     <KeyRound className="h-5 w-5" />
                   </IconButton>
                 ) : (
@@ -93,7 +100,11 @@ function RouteComponent() {
                 <IconButton
                   aria-label="Clear data"
                   onClick={() =>
-                    clearDataWithPrompt("Do you want to clear the data")
+                    void clearDataWithPrompt({
+                      title: "Clear all data on this device?",
+                      description: "Songs, playlists and settings here are deleted. Backups on GitHub stay.",
+                      confirmLabel: "Clear",
+                    })
                   }
                 >
                   <Trash2 className="h-5 w-5" />
