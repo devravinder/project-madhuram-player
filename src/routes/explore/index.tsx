@@ -71,7 +71,7 @@ function Explore() {
                     id="library-address"
                     value={address}
                     onChange={(event) => setAddress(event.target.value)}
-                    placeholder="owner/repository or a GitHub link"
+                    placeholder="owner/repo, GitHub link or share link"
                     autoComplete="off"
                     spellCheck={false}
                   />

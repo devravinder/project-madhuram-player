@@ -3,7 +3,7 @@ import { addressKey, parseAddress } from "./publicLibrary";
 
 export class InvalidAddressError extends Error {
   constructor() {
-    super("Enter an address like owner/repo, or paste the GitHub link.");
+    super("Enter owner/repo, a GitHub link or a share link.");
   }
 }
 

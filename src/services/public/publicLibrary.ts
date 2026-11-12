@@ -31,9 +31,23 @@ export class TrackFileMissingError extends Error {
 
 const NAME = /^[A-Za-z0-9._-]+$/;
 
-// Accepts owner/repo or a github.com link to the repository.
+// The share link of this app: <app url>#/explore/<owner>/<repo>
+const SHARE_LINK = /#\/explore\/([^/?#]+)\/([^/?#]+)/;
+
+const decode = (part: string) => {
+  try {
+    return decodeURIComponent(part);
+  } catch {
+    return part;
+  }
+};
+
+// Accepts owner/repo, a github.com link to the repository, or this app's share link.
 export function parseAddress(input: string): PublicAddress | undefined {
-  const text = input.trim().replace(/^(https?:\/\/)?(www\.)?github\.com\//i, "");
+  const shared = SHARE_LINK.exec(input.trim());
+  const text = shared
+    ? `${decode(shared[1])}/${decode(shared[2])}`
+    : input.trim().replace(/^(https?:\/\/)?(www\.)?github\.com\//i, "");
   const [owner, rawRepo] = text.split("/");
   const repo = rawRepo?.replace(/\.git$/i, "");
   if (!owner || !repo || !NAME.test(owner) || !NAME.test(repo)) return undefined;

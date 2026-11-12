@@ -59,6 +59,7 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 - [x] Download split tracks then play
 - [x] Download as copy (one or all), and upload to own repo when signed in
 - [x] Followed sources stored in the index (follow and unfollow sync across devices)
+- [x] Explore also accepts the app's share link
 
 ## Phase 6 — Polish
 

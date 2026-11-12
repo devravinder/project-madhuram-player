@@ -49,11 +49,14 @@ describe("parseAddress", () => {
     ["https://github.com/alice/music.git", { owner: "alice", repo: "music" }],
     ["github.com/alice/music/", { owner: "alice", repo: "music" }],
     ["https://github.com/alice/music/tree/main", { owner: "alice", repo: "music" }],
+    ["https://example.org/player/#/explore/alice/music", { owner: "alice", repo: "music" }],
+    ["http://localhost:5173/#/explore/alice/my-music", { owner: "alice", repo: "my-music" }],
+    ["https://example.org/#/explore/alice/music?x=1", { owner: "alice", repo: "music" }],
   ])("reads %s", (input, expected) => {
     expect(parseAddress(input)).toEqual(expected);
   });
 
-  it.each(["", "alice", "alice/", "/music", "al ice/music", "https://github.com/alice"])(
+  it.each(["", "alice", "alice/", "/music", "al ice/music", "https://github.com/alice", "https://example.org/#/explore/alice"])(
     "rejects %j",
     (input) => {
       expect(parseAddress(input)).toBeUndefined();
