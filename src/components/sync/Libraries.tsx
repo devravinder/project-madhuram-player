@@ -5,9 +5,78 @@ import { suggestLibraryName } from "@/services/github/session";
 import { confirmToast } from "@/services/confirmToast";
 import { shareLink } from "@/services/shareLink";
 import { formatBytes } from "@/services/storageUsage";
-import { Globe, Link2, Lock, Plus, Trash2 } from "lucide-react";
+import { Globe, Link2, Lock, Pencil, Plus, Trash2 } from "lucide-react";
 import { useId, useState, type FormEvent } from "react";
 import { toast } from "sonner";
+import { MAX_DISPLAY_NAME } from "@/services/github/indexTypes";
+
+// The name shown for a library. Its repo name, and so its links, stay.
+function RenameLibrary({
+  library,
+  onClose,
+}: {
+  library: LibraryInfo;
+  onClose: () => void;
+}) {
+  const { renameLibrary } = useSync();
+  const inputId = useId();
+  const [name, setName] = useState(library.displayName ?? library.name);
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string>();
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    setBusy(true);
+    const failure = await renameLibrary(library.name, name);
+    setBusy(false);
+    if (failure) {
+      setProblem(failure);
+      return;
+    }
+    onClose();
+  };
+
+  return (
+    <form onSubmit={submit} className="flex flex-col gap-2 pl-6">
+      <label htmlFor={inputId} className="text-sm">
+        Name shown for {library.name}
+      </label>
+      <Input
+        id={inputId}
+        value={name}
+        maxLength={MAX_DISPLAY_NAME}
+        onChange={(event) => setName(event.target.value)}
+        autoComplete="off"
+      />
+      <p className="text-xs text-muted-foreground">
+        The repo keeps its name, so shared links still work. Leave empty to show
+        the repo name.
+      </p>
+      {problem && (
+        <p role="alert" className="text-sm text-destructive">
+          {problem}
+        </p>
+      )}
+      <div className="flex gap-2">
+        <Button.Primary
+          type="submit"
+          disabled={busy}
+          className="text-sm disabled:opacity-60"
+        >
+          {busy ? "Saving..." : "Save"}
+        </Button.Primary>
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={busy}
+          className="cursor-pointer px-2 py-1 rounded-md text-sm hover:bg-accent"
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
 
 // Deleting a repo cannot be undone, so the name is typed to confirm, the
 // way GitHub itself asks.
@@ -108,6 +177,7 @@ function LibraryRow({
     useSync();
   const changing = changingLibrary === library.name;
   const [deleting, setDeleting] = useState(false);
+  const [renaming, setRenaming] = useState(false);
 
   const toggle = async () => {
     if (library.isPrivate) {
@@ -136,9 +206,20 @@ function LibraryRow({
           <Globe size={16} aria-hidden className="shrink-0 text-highlight" />
         )}
         <span className="flex-1 min-w-0">
-          <span className="block font-mono text-sm truncate">
-            {library.name}
-          </span>
+          {library.displayName ? (
+            <>
+              <span className="block text-sm font-medium truncate">
+                {library.displayName}
+              </span>
+              <span className="block font-mono text-xs text-muted-foreground truncate">
+                {library.name}
+              </span>
+            </>
+          ) : (
+            <span className="block font-mono text-sm truncate">
+              {library.name}
+            </span>
+          )}
           <span className="block text-xs text-muted-foreground">
             {library.tracks} songs · {formatBytes(library.usedBytes)}
             {library.isDefault && " · default"}
@@ -183,6 +264,16 @@ function LibraryRow({
             Make default
           </button>
         )}
+        {!renaming && (
+          <button
+            type="button"
+            onClick={() => setRenaming(true)}
+            aria-label={`Rename ${library.name}`}
+            className="cursor-pointer flex items-center gap-1 px-2 py-1 rounded-md text-sm hover:bg-accent"
+          >
+            <Pencil size={14} /> Rename
+          </button>
+        )}
         {canDelete && !deleting && (
           <button
             type="button"
@@ -194,6 +285,9 @@ function LibraryRow({
           </button>
         )}
       </div>
+      {renaming && (
+        <RenameLibrary library={library} onClose={() => setRenaming(false)} />
+      )}
       {deleting && (
         <DeleteLibrary library={library} onClose={() => setDeleting(false)} />
       )}

@@ -20,6 +20,10 @@ import {
   isLibraryPrivate,
   setLibraryPrivate,
 } from "@/services/github/visibility";
+import {
+  InvalidDisplayNameError,
+  setDisplayName,
+} from "@/services/github/displayName";
 import { HttpError } from "@/services/httpError";
 import { isValidRepoName } from "@/services/settingsStore";
 import { deviceProvider } from "@/services/storage/deviceProvider";
@@ -86,7 +90,8 @@ export type RepoUsage = { repos: RepoInfo[]; maxRepoBytes: number };
 
 // One of the user's libraries, as shown in Settings.
 export type LibraryInfo = {
-  name: string;
+  name: string; // the repo name
+  displayName?: string; // the user's own name for it, if set
   isPrivate: boolean;
   isDefault: boolean;
   tracks: number;
@@ -139,6 +144,10 @@ type SyncContextValue = {
   keptOnGithub: number; // songs removed from this device only
   deleteEverywhere: (trackId: string) => Promise<DeleteResult>;
   deleteLibrary: (name: string) => Promise<string | undefined>; // a problem, if any
+  renameLibrary: (
+    name: string,
+    displayName: string,
+  ) => Promise<string | undefined>;
   renameSong: (id: string, names: SongNames) => Promise<void>;
 };
 
@@ -280,6 +289,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         ]);
         return {
           name: library.repo,
+          displayName: index.displayName,
           isPrivate,
           isDefault: library.repo === current.info.defaultLibrary,
           tracks: index.tracks.filter((t) => !t.deleted).length,
@@ -523,6 +533,28 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     [withSession],
   );
 
+  // Renames how the library is shown; the repo name stays.
+  const renameLibrary = useCallback(
+    async (name: string, displayName: string): Promise<string | undefined> => {
+      let failure: string | undefined;
+      await withSession(async (current) => {
+        const library = current.libraries.find((l) => l.repo === name);
+        if (!library) {
+          failure = `${name} is not in your list.`;
+          return;
+        }
+        try {
+          await setDisplayName(library, displayName);
+        } catch (problem) {
+          if (!(problem instanceof InvalidDisplayNameError)) throw problem;
+          failure = problem.message;
+        }
+      });
+      return failure;
+    },
+    [withSession],
+  );
+
   // Renames on this device; a backed-up song is renamed on GitHub too, and
   // other devices take the new name on their next sync.
   const renameSong = useCallback(
@@ -635,6 +667,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         keptOnGithub,
         deleteEverywhere,
         deleteLibrary,
+        renameLibrary,
         renameSong,
       }}
     >

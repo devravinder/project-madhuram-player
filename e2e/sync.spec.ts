@@ -331,4 +331,15 @@ test("renames a backed-up song, saves its file, and deletes a library", async ({
   expect(await page.evaluate((r) => (window as any).__fake.repos.has(r), SECOND)).toBe(false);
   expect(await remoteTitles(page)).toEqual(["New Name"]);
   await expect(page.getByRole("button", { name: `Delete ${REPO}`, exact: true })).toHaveCount(0);
+
+  // Rename: only the shown name changes; the repo and its link stay.
+  await page.getByRole("button", { name: `Rename ${REPO}`, exact: true }).click();
+  await page.getByLabel(`Name shown for ${REPO}`).fill("Family Songs");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.locator("li", { hasText: "Family Songs" })).toBeVisible({ timeout: 15_000 });
+  expect(await page.evaluate((r) => (window as any).__fake.repos.has(r), REPO)).toBe(true);
+  await page.goto("/#/explore");
+  await page.getByRole("link", { name: /Family Songs/ }).click();
+  await expect(page.getByText("Family Songs", { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(`${REPO} · 1 tracks`)).toBeVisible();
 });

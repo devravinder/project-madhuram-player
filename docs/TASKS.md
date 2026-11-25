@@ -88,3 +88,4 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 - [x] Delete a library (type the name to confirm; overflow repos too; songs stay on the device)
 - [x] Download a song's file to the device, in its original format
 - [x] Rename a song (title, artist, album); renames sync without re-uploading the file
+- [x] Rename a library (a display name in its index; the repo name and links stay)

@@ -48,8 +48,15 @@ function readerFor(owner: string, repo: string): Reader {
   return new PublicLibrary({ owner, repo });
 }
 
+export type RemoteLibrary = { songs: Song[]; displayName?: string };
+
+export const loadRemoteLibrary = async (owner: string, repo: string): Promise<RemoteLibrary> => {
+  const index = await readerFor(owner, repo).loadIndex();
+  return { songs: remoteSongs(owner, repo, index), displayName: index.displayName?.trim() || undefined };
+};
+
 export const loadRemoteSongs = async (owner: string, repo: string) =>
-  remoteSongs(owner, repo, await readerFor(owner, repo).loadIndex());
+  (await loadRemoteLibrary(owner, repo)).songs;
 
 const libraryOf = (song: Song) => {
   if (!song.remote) throw new Error("Not a remote track");

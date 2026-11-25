@@ -12,6 +12,7 @@ import {
   PageMainSection,
 } from "@/components/Elements";
 import { useSync } from "@/context/SyncContext";
+import { usePublicTracks } from "@/queries/publicLibrary";
 import {
   followSource,
   InvalidAddressError,
@@ -26,6 +27,29 @@ import { useEffect, useState, type FormEvent } from "react";
 export const Route = createFileRoute("/explore/")({
   component: Explore,
 });
+
+// A followed library's own name, once its index has loaded.
+function FollowedName({
+  owner,
+  repo,
+  address,
+}: {
+  owner: string;
+  repo: string;
+  address: string;
+}) {
+  const { data } = usePublicTracks(owner, repo);
+  if (!data?.displayName)
+    return <span className="block line-clamp-1">{address}</span>;
+  return (
+    <>
+      <span className="block line-clamp-1">{data.displayName}</span>
+      <span className="block line-clamp-1 text-xs font-normal text-muted-foreground">
+        {address}
+      </span>
+    </>
+  );
+}
 
 // The signed-in user's libraries, private ones too, so a new device can
 // play or download them without a full sync.
@@ -71,7 +95,7 @@ function MyLibraries() {
                   />
                 )}
                 <span className="flex-1 min-w-0 line-clamp-1 font-medium">
-                  {library.name}
+                  {library.displayName ?? library.name}
                 </span>
                 <span className="shrink-0 text-xs text-muted-foreground">
                   {library.tracks} songs
@@ -190,9 +214,13 @@ function Explore() {
                         <Link
                           to="/explore/$owner/$repo"
                           params={{ owner, repo }}
-                          className="flex-1 min-w-0 line-clamp-1 font-medium"
+                          className="flex-1 min-w-0 font-medium"
                         >
-                          {source.address}
+                          <FollowedName
+                            owner={owner}
+                            repo={repo}
+                            address={source.address}
+                          />
                         </Link>
                         <IconButton
                           aria-label={`Unfollow ${source.address}`}

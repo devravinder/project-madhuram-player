@@ -1,6 +1,11 @@
 import db from "@/services/db";
 import { GithubApi } from "@/services/github/api";
-import { parseIndex } from "@/services/github/indexTypes";
+import { parseIndex, libraryLabel } from "@/services/github/indexTypes";
+import {
+  InvalidDisplayNameError,
+  setDisplayName,
+} from "@/services/github/displayName";
+import { loadRemoteLibrary } from "@/services/public/remote";
 import type { LibraryRepo } from "@/services/github/library";
 import {
   homeInfo,
@@ -13,7 +18,7 @@ import { deviceProvider } from "@/services/storage/deviceProvider";
 import type { TrackMeta } from "@/services/storage/types";
 import { FakeGithub } from "@/testing/fakeGithub";
 import { makeFile, randomBytes } from "@/testing/files";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   deleteLibrary,
   forgetLibrariesExcept,
@@ -139,6 +144,46 @@ describe("rename a song", () => {
 
     const song = await db.songs.get("a");
     expect(song).toMatchObject({ title: "From Phone", mediaId });
+  });
+});
+
+describe("library display name", () => {
+  it("is saved in the library's index, and the repo keeps its name", async () => {
+    expect(await setDisplayName(second, "  Kids   songs ")).toBe("Kids songs");
+    expect(parseIndex(fake.fileText(SECOND, "index.json")!).displayName).toBe(
+      "Kids songs",
+    );
+    expect(fake.repos.has(SECOND)).toBe(true);
+    expect(libraryLabel(SECOND, "Kids songs")).toBe("Kids songs");
+  });
+
+  it("is cleared by an empty name or the repo's own name", async () => {
+    await setDisplayName(second, "Kids");
+    expect(await setDisplayName(second, "")).toBeUndefined();
+    expect(
+      parseIndex(fake.fileText(SECOND, "index.json")!).displayName,
+    ).toBeUndefined();
+    await setDisplayName(second, SECOND);
+    expect(libraryLabel(SECOND, undefined)).toBe(SECOND);
+  });
+
+  it("refuses a name that is too long", async () => {
+    await expect(setDisplayName(second, "x".repeat(61))).rejects.toBeInstanceOf(
+      InvalidDisplayNameError,
+    );
+  });
+
+  it("is shown to listeners of a public library", async () => {
+    await setDisplayName(second, "Bhajans");
+    fake.repos.get(SECOND)!.private = false;
+    vi.stubGlobal("fetch", fake.fetch);
+    try {
+      expect((await loadRemoteLibrary(fake.login, SECOND)).displayName).toBe(
+        "Bhajans",
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
 

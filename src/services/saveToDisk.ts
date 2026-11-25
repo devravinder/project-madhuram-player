@@ -30,12 +30,12 @@ export function downloadName(
     EXTENSIONS[file.type] ??
     (song.kind === "video" ? "mp4" : "mp3")
   ).toLowerCase();
-  // Characters that file systems refuse.
-  // eslint-disable-next-line no-control-regex
-  const safe = song.title
-    .replace(/[\\/:*?"<>|\u0000-\u001f]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  // Characters that file systems refuse, including control characters.
+  const refused = new RegExp(
+    `[\\\\/:*?"<>|${String.fromCharCode(0)}-${String.fromCharCode(31)}]+`,
+    "g",
+  );
+  const safe = song.title.replace(refused, " ").replace(/\s+/g, " ").trim();
   return `${safe || "song"}.${extension}`;
 }
 

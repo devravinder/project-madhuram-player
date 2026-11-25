@@ -58,8 +58,15 @@ export type LibraryIndex = {
   sources: SourceEntry[]; // followed public libraries (home only)
   libraries?: string[]; // the user's library repos (home only)
   defaultLibrary?: string; // where uploads go unless chosen (home only)
+  displayName?: string; // shown instead of the repo name (library only)
   updatedAt: string;
 };
+
+export const MAX_DISPLAY_NAME = 60;
+
+// What the app shows for a library: its display name, else its repo name.
+export const libraryLabel = (repo: string, displayName?: string) =>
+  displayName?.trim() || repo;
 
 export class NotLibraryIndexError extends Error {
   constructor() {
@@ -123,7 +130,8 @@ export function parseIndex(text: string): LibraryIndex {
   if (data.schemaVersion > SCHEMA_VERSION) {
     throw new UnsupportedIndexVersionError(data.schemaVersion);
   }
-  if (data.role !== "home" && data.role !== "library") throw new NotLibraryIndexError();
+  if (data.role !== "home" && data.role !== "library")
+    throw new NotLibraryIndexError();
   return data as LibraryIndex;
 }
 

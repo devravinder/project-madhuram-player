@@ -1,5 +1,5 @@
 import { PublicLibraryError } from "@/services/public/publicLibrary";
-import { loadRemoteSongs } from "@/services/public/remote";
+import { loadRemoteLibrary } from "@/services/public/remote";
 import { useQuery } from "@tanstack/react-query";
 
 export const publicKeys = {
@@ -13,7 +13,7 @@ export const publicKeys = {
 export function usePublicTracks(owner: string, repo: string) {
   return useQuery({
     queryKey: publicKeys.index(owner, repo),
-    queryFn: () => loadRemoteSongs(owner, repo),
+    queryFn: () => loadRemoteLibrary(owner, repo),
     // A missing or foreign library will not appear by retrying.
     retry: (count, error) =>
       !(error instanceof PublicLibraryError) && count < 2,

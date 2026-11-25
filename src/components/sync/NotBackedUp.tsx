@@ -16,18 +16,27 @@ export default function NotBackedUp() {
   const [chosen, setChosen] = useState<string>();
   const pickerId = useId();
   const busy = phase !== "idle";
-  const target = chosen && libraries?.some((l) => l.name === chosen) ? chosen : defaultLibrary;
+  const target =
+    chosen && libraries?.some((l) => l.name === chosen)
+      ? chosen
+      : defaultLibrary;
 
-  const songs = useLiveQuery(async () => {
-    const backedUp = new Set(await db.syncState.toCollection().primaryKeys());
-    const all = await db.songs.toArray();
-    return all
-      .filter((song) => !backedUp.has(song.id))
-      .sort((a, b) => a.title.localeCompare(b.title));
-  }, [], EMPTY);
+  const songs = useLiveQuery(
+    async () => {
+      const backedUp = new Set(await db.syncState.toCollection().primaryKeys());
+      const all = await db.songs.toArray();
+      return all
+        .filter((song) => !backedUp.has(song.id))
+        .sort((a, b) => a.title.localeCompare(b.title));
+    },
+    [],
+    EMPTY,
+  );
 
   if (songs.length === 0) {
-    return <p className="text-sm text-muted-foreground">Every song is backed up.</p>;
+    return (
+      <p className="text-sm text-muted-foreground">Every song is backed up.</p>
+    );
   }
 
   const total = songs.reduce((sum, song) => sum + (song.bytes ?? 0), 0);
@@ -42,7 +51,9 @@ export default function NotBackedUp() {
           className="transition-transform group-open:rotate-90"
         />
         <span className="font-medium">Not backed up ({songs.length})</span>
-        <span className="text-sm text-muted-foreground">{formatBytes(total)}</span>
+        <span className="text-sm text-muted-foreground">
+          {formatBytes(total)}
+        </span>
       </summary>
 
       <div className="flex flex-col gap-2 p-2 pt-0">
@@ -60,14 +71,22 @@ export default function NotBackedUp() {
             {!libraries && <option value="">Loading...</option>}
             {libraries?.map((library) => (
               <option key={library.name} value={library.name}>
-                {library.name}
+                {library.displayName
+                  ? `${library.displayName} (${library.name})`
+                  : library.name}
                 {library.isPrivate ? "" : " (public)"}
               </option>
             ))}
           </select>
           <button
             type="button"
-            onClick={() => target && void upload(songs.map((s) => s.id), target)}
+            onClick={() =>
+              target &&
+              void upload(
+                songs.map((s) => s.id),
+                target,
+              )
+            }
             disabled={!canUpload}
             className="cursor-pointer flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed"
           >

@@ -22,7 +22,8 @@ export const Route = createFileRoute("/explore/$owner/$repo")({
 
 function PublicLibraryPage() {
   const { owner, repo } = Route.useParams();
-  const { data: songs, error, isPending, refetch } = usePublicTracks(owner, repo);
+  const { data, error, isPending, refetch } = usePublicTracks(owner, repo);
+  const songs = data?.songs;
   const { playSong } = usePlayer();
 
   return (
@@ -41,9 +42,13 @@ function PublicLibraryPage() {
               <Globe size={30} />
             </HeaderIcon>
             <div className="min-w-0">
-              <HeaderTitle>{`${owner}/${repo}`}</HeaderTitle>
+              <HeaderTitle>
+                {data?.displayName ?? `${owner}/${repo}`}
+              </HeaderTitle>
               <HeaderSubTitle>
-                {songs ? `${songs.length} tracks` : "Loading..."}
+                {songs
+                  ? `${data?.displayName ? `${owner}/${repo} · ` : ""}${songs.length} tracks`
+                  : "Loading..."}
               </HeaderSubTitle>
             </div>
           </div>
@@ -61,20 +66,32 @@ function PublicLibraryPage() {
       <PageMain>
         <PageMainContainer>
           <PageMainSection>
-            {isPending && <p className="text-muted-foreground">Loading library...</p>}
+            {isPending && (
+              <p className="text-muted-foreground">Loading library...</p>
+            )}
             {error && (
               <div role="alert" className="flex flex-col gap-3">
                 <p className="text-destructive">{error.message}</p>
-                <Button.Secondary onClick={() => void refetch()} className="self-start text-base">
+                <Button.Secondary
+                  onClick={() => void refetch()}
+                  className="self-start text-base"
+                >
                   Try again
                 </Button.Secondary>
               </div>
             )}
             {songs && songs.length === 0 && (
-              <p className="text-muted-foreground">This library has no tracks yet.</p>
+              <p className="text-muted-foreground">
+                This library has no tracks yet.
+              </p>
             )}
             {songs && songs.length > 0 && (
-              <SongListProvider songs={songs} playListId="remote" refetch={() => void refetch()} remote />
+              <SongListProvider
+                songs={songs}
+                playListId="remote"
+                refetch={() => void refetch()}
+                remote
+              />
             )}
           </PageMainSection>
         </PageMainContainer>

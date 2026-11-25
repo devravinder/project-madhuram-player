@@ -33,5 +33,8 @@ describe("downloadName", () => {
     expect(downloadName({ title: "///", kind: "audio" }, file("x.mp3"))).toBe(
       "song.mp3",
     );
+    expect(
+      downloadName({ title: "a\u0007b\\c", kind: "audio" }, file("x.mp3")),
+    ).toBe("a b c.mp3");
   });
 });
