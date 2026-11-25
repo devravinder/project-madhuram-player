@@ -60,9 +60,6 @@ export const DevToolProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   const toggleDevTools = async () => {
-    // Dev tools never ship in production builds.
-    if (!import.meta.env.DEV) return;
-
     // First time load
     if (!erudaRef.current) {
       await importEruda();

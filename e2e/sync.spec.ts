@@ -1,4 +1,4 @@
-import { expect, importFiles, signInWithFake, test, wavBuffer } from "./fixtures";
+import { expect, importFiles, openSettings, signInWithFake, test, wavBuffer } from "./fixtures";
 
 const REPO = "project-music-files";
 
@@ -32,7 +32,7 @@ test("backs a library up to GitHub and restores it on a fresh device", async ({ 
     { name: "Beta.wav", buffer: wavBuffer(4, 5) },
   ]);
 
-  await page.goto("/#/settings");
+  await openSettings(page);
   await librariesShown(page);
   await page.getByRole("button", { name: "Sync", exact: true }).click();
   await expect(page.getByText("Up to date.")).toBeVisible({ timeout: 15_000 });
@@ -68,7 +68,7 @@ test("backs a library up to GitHub and restores it on a fresh device", async ({ 
 test("waits out a GitHub rate limit and carries on by itself", async ({ page }) => {
   await signInWithFake(page);
   await importFiles(page, [{ name: "Gamma.wav", buffer: wavBuffer(2) }]);
-  await page.goto("/#/settings");
+  await openSettings(page);
   await librariesShown(page);
 
   await page.evaluate(() => (window as any).__fake.limitNextWrites(1));
@@ -82,7 +82,7 @@ test("waits out a GitHub rate limit and carries on by itself", async ({ page }) 
 test("removing the token keeps the music and hides the backup", async ({ page }) => {
   await signInWithFake(page);
   await importFiles(page, [{ name: "Delta.wav", buffer: wavBuffer(2) }]);
-  await page.goto("/#/settings");
+  await openSettings(page);
 
   await page.getByRole("button", { name: "Remove token" }).click();
   const ask = page.locator("[data-sonner-toast]", { hasText: "Remove the GitHub token" });
@@ -120,7 +120,7 @@ test("deletes a backed-up song from GitHub, or from this device only", async ({ 
     { name: "Gone.wav", buffer: wavBuffer(2) },
     { name: "Kept.wav", buffer: wavBuffer(2, 5) },
   ]);
-  await page.goto("/#/settings");
+  await openSettings(page);
   await uploadAll(page, 2);
   await expect(page.getByText("Synced 2.")).toBeVisible({ timeout: 20_000 });
   const before = (await remotePaths(page)).length;
@@ -138,7 +138,7 @@ test("deletes a backed-up song from GitHub, or from this device only", async ({ 
   await expect(page.getByText("Removed from this device. It is still on GitHub.")).toBeVisible();
   expect(await remoteTitles(page)).toEqual(["Kept"]);
 
-  await page.goto("/#/settings");
+  await openSettings(page);
   await expect(page.getByText("1 on GitHub only.", { exact: false })).toBeVisible();
   await page.getByRole("button", { name: "Sync", exact: true }).click();
   await expect(page.getByText("Up to date.")).toBeVisible({ timeout: 15_000 });
@@ -165,14 +165,29 @@ test("carries on with unfinished sync steps when the app opens signed in", async
   });
 
   await installFakeGithub(page);
-  await page.goto("/#/settings");
+  await openSettings(page);
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.getByLabel("GitHub access token").fill("good-token");
   await page.getByRole("button", { name: "Sign in" }).click();
 
   await expect.poll(() => remoteTitles(page).catch(() => []), { timeout: 20_000 }).toEqual(["Leftover"]);
-  await page.goto("/#/settings");
+  await openSettings(page);
   await expect(page.getByText("Synced 1.")).toBeVisible();
+});
+
+test("settings sections start folded and stay open once opened", async ({ page }) => {
+  await signInWithFake(page);
+  await page.goto("/#/settings");
+  const sync = page.getByRole("button", { name: "Sync", exact: true });
+  await expect(sync).toBeHidden();
+
+  await page.getByRole("heading", { name: "GitHub backup" }).click();
+  await expect(sync).toBeVisible();
+
+  await page.goto("/#/library");
+  await page.goto("/#/settings");
+  await expect(sync).toBeVisible();
+  await expect(page.getByRole("button", { name: "Toggle dev tools" })).toBeVisible();
 });
 
 test("uploads just the chosen song and nothing after import", async ({ page }) => {
@@ -184,7 +199,7 @@ test("uploads just the chosen song and nothing after import", async ({ page }) =
   await page.waitForTimeout(4000); // past the delay of automatic playlist sync
   expect(await remoteTitles(page).catch(() => [])).toEqual([]);
 
-  await page.goto("/#/settings");
+  await openSettings(page);
   await page.getByText("Not backed up (2)").click();
   await expect(page.getByText("46.9 KB")).toBeVisible(); // sizes help leave big files out
   await page.getByRole("button", { name: "Upload Small" }).click();
@@ -205,7 +220,7 @@ test("uploads into a chosen library and shares only that one", async ({ page, co
     { name: "Mine.wav", buffer: wavBuffer(2) },
     { name: "For Friends.wav", buffer: wavBuffer(2, 5) },
   ]);
-  await page.goto("/#/settings");
+  await openSettings(page);
   await librariesShown(page);
   await expect(page.getByText("How do I share my music?")).toHaveCount(0); // replaced by the list
 

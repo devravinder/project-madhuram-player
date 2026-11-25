@@ -25,6 +25,8 @@ const pwaOptions: Partial<VitePWAOptions> = {
 
   workbox: {
     globPatterns: ["**/*.{js,css,html,svg,png,ico}"],
+    // Dev tools (over 1 MB) load only when opened, not on every install.
+    globIgnores: ["**/eruda*"],
     cleanupOutdatedCaches: true,
     clientsClaim: true,
     // navigateFallback: 'index.html',

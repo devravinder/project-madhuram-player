@@ -1,4 +1,5 @@
 import { Button, Input } from "@/components/Elements";
+import SettingsSection from "@/components/settings/SettingsSection";
 import { useSync, type LastRun } from "@/context/SyncContext";
 import { useAuth } from "@/hooks/useAuth";
 import { authStore } from "@/services/github/authStore";
@@ -54,7 +55,11 @@ function RepoNameForm({ taken }: { taken: string }) {
           {problem}
         </p>
       )}
-      <Button.Primary type="submit" disabled={!name.trim()} className="text-base justify-center">
+      <Button.Primary
+        type="submit"
+        disabled={!name.trim()}
+        className="text-base justify-center"
+      >
         Use this name
       </Button.Primary>
     </form>
@@ -96,17 +101,11 @@ export default function SyncSettings() {
       : summarize(last);
 
   return (
-    <section
-      aria-labelledby="sync-title"
-      className="border border-card rounded-lg p-3 flex flex-col gap-3"
+    <SettingsSection
+      id="github-backup"
+      title="GitHub backup"
+      summary={user?.login}
     >
-      <div>
-        <h2 id="sync-title" className="font-medium">
-          GitHub backup
-        </h2>
-        <p className="text-sm text-muted-foreground">{user?.login}</p>
-      </div>
-
       {nameTaken && <RepoNameForm taken={nameTaken} />}
 
       <div className="flex flex-wrap gap-2">
@@ -132,21 +131,35 @@ export default function SyncSettings() {
       </div>
 
       <p className="text-sm text-muted-foreground">
-        Sync gets songs from your other devices. New songs upload only from the list below.
+        Sync gets songs from your other devices. New songs upload only from the
+        list below.
       </p>
 
       <NotBackedUp />
 
       {keptOnGithub > 0 && (
         <p className="text-sm text-muted-foreground">
-          {keptOnGithub} on GitHub only. Download to get {keptOnGithub === 1 ? "it" : "them"} back.
+          {keptOnGithub} on GitHub only. Download to get{" "}
+          {keptOnGithub === 1 ? "it" : "them"} back.
         </p>
       )}
 
-      <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
+      <p
+        role="status"
+        aria-live="polite"
+        className="text-sm text-muted-foreground"
+      >
         {statusText}
         {!busy && resumeAt && (
-          <> Retrying at {new Date(resumeAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.</>
+          <>
+            {" "}
+            Retrying at{" "}
+            {new Date(resumeAt).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+            .
+          </>
         )}
       </p>
 
@@ -170,19 +183,25 @@ export default function SyncSettings() {
 
       {failedItems.length > 0 && (
         <div className="flex flex-col gap-2">
-          <p className="text-sm text-destructive">{failedItems.length} failed.</p>
+          <p className="text-sm text-destructive">
+            {failedItems.length} failed.
+          </p>
           <ul className="text-xs text-muted-foreground list-disc pl-5">
             {failedItems.slice(0, 5).map((item) => (
               <li key={item.id}>{item.lastError ?? "Unknown error"}</li>
             ))}
           </ul>
-          <Button.Secondary onClick={() => void retryFailed()} disabled={busy} className="text-base">
+          <Button.Secondary
+            onClick={() => void retryFailed()}
+            disabled={busy}
+            className="text-base"
+          >
             Retry
           </Button.Secondary>
         </div>
       )}
 
       <Libraries />
-    </section>
+    </SettingsSection>
   );
 }

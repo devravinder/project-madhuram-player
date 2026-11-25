@@ -25,8 +25,6 @@ export const Route = createFileRoute("/settings")({
   component: RouteComponent,
 });
 
-const showDevTools = import.meta.env.DEV;
-
 const rowClass =
   "border border-card rounded-lg p-2 flex flex-row items-center justify-between gap-2";
 
@@ -37,7 +35,8 @@ function RouteComponent() {
   const removeToken = async () => {
     const yes = await confirmToast({
       title: "Remove the GitHub token from this device?",
-      description: "Your music stays here. Backup stops until you sign in again.",
+      description:
+        "Your music stays here. Backup stops until you sign in again.",
       confirmLabel: "Remove",
       destructive: true,
     });
@@ -70,7 +69,10 @@ function RouteComponent() {
                     : "Not signed in"}
                 </span>
                 {status === "signed-in" ? (
-                  <IconButton aria-label="Remove token" onClick={() => void removeToken()}>
+                  <IconButton
+                    aria-label="Remove token"
+                    onClick={() => void removeToken()}
+                  >
                     <KeyRound className="h-5 w-5" />
                   </IconButton>
                 ) : (
@@ -84,14 +86,15 @@ function RouteComponent() {
               </div>
               <SyncSettings />
               <StorageSettings />
-              {showDevTools && (
-                <div className={rowClass}>
-                  <span>Dev Tools</span>
-                  <IconButton aria-label="Toggle dev tools" onClick={toggleDevTools}>
-                    <BugPlay className="h-5 w-5" />
-                  </IconButton>
-                </div>
-              )}
+              <div className={rowClass}>
+                <span>Dev Tools</span>
+                <IconButton
+                  aria-label="Toggle dev tools"
+                  onClick={toggleDevTools}
+                >
+                  <BugPlay className="h-5 w-5" />
+                </IconButton>
+              </div>
               <div className={rowClass}>
                 <span>Change Theme</span> <ThemeToggle />
               </div>
@@ -102,7 +105,8 @@ function RouteComponent() {
                   onClick={() =>
                     void clearDataWithPrompt({
                       title: "Clear all data on this device?",
-                      description: "Songs, playlists and settings here are deleted. Backups on GitHub stay.",
+                      description:
+                        "Songs, playlists and settings here are deleted. Backups on GitHub stay.",
                       confirmLabel: "Clear",
                     })
                   }

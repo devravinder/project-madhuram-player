@@ -83,3 +83,4 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 - [x] Several libraries: upload into a chosen one, share only chosen ones, copy link; private home repo for playlists
 - [x] Notifications can be closed with ×; in-app confirmations instead of browser pop-ups
 - [x] Explore shows My libraries (private ones too, read with the token) and Following; a new device offers Download all or Browse
+- [x] Settings sections fold (open state remembered); dev tools available in production, loaded only when opened

@@ -1,4 +1,5 @@
 import { Button } from "@/components/Elements";
+import SettingsSection from "./SettingsSection";
 import { useSync } from "@/context/SyncContext";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -10,8 +11,17 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 
-function Meter({ used, total, label }: { used: number; total: number; label: string }) {
-  const percent = total > 0 ? Math.min(100, Math.round((used / total) * 100)) : 0;
+function Meter({
+  used,
+  total,
+  label,
+}: {
+  used: number;
+  total: number;
+  label: string;
+}) {
+  const percent =
+    total > 0 ? Math.min(100, Math.round((used / total) * 100)) : 0;
   return (
     <div className="flex flex-col gap-1">
       <div className="flex justify-between text-sm">
@@ -41,28 +51,39 @@ export default function StorageSettings() {
   const { status } = useAuth();
   const { usage } = useSync();
   const queryClient = useQueryClient();
-  const device = useQuery({ queryKey: ["device-usage"], queryFn: readDeviceUsage });
+  const device = useQuery({
+    queryKey: ["device-usage"],
+    queryFn: readDeviceUsage,
+  });
 
   const persist = async () => {
     const granted = await requestPersistence();
     await queryClient.invalidateQueries({ queryKey: ["device-usage"] });
     if (granted) toast.success("This browser will keep your music");
-    else toast.error("The browser did not allow it. Installing the app usually helps.");
+    else
+      toast.error(
+        "The browser did not allow it. Installing the app usually helps.",
+      );
   };
 
   const info = device.data;
 
   return (
-    <section
-      aria-labelledby="storage-title"
-      className="border border-card rounded-lg p-3 flex flex-col gap-3"
+    <SettingsSection
+      id="storage"
+      title="Storage"
+      summary={
+        info?.usedBytes !== undefined && info.quotaBytes
+          ? `${formatBytes(info.usedBytes)} used on this device`
+          : undefined
+      }
     >
-      <h2 id="storage-title" className="font-medium">
-        Storage
-      </h2>
-
       {info?.usedBytes !== undefined && info.quotaBytes ? (
-        <Meter used={info.usedBytes} total={info.quotaBytes} label="This device" />
+        <Meter
+          used={info.usedBytes}
+          total={info.quotaBytes}
+          label="This device"
+        />
       ) : (
         <p className="text-sm text-muted-foreground">
           This browser does not report how much space is used.
@@ -71,8 +92,8 @@ export default function StorageSettings() {
 
       {info?.persisted ? (
         <p className="text-sm text-muted-foreground flex items-center gap-2">
-          <ShieldCheck size={16} className="text-primary" /> The browser will not clear
-          your music when space runs low.
+          <ShieldCheck size={16} className="text-primary" /> The browser will
+          not clear your music when space runs low.
         </p>
       ) : (
         info?.canPersist && (
@@ -80,7 +101,10 @@ export default function StorageSettings() {
             <p className="text-sm text-muted-foreground">
               Browsers may clear saved music when space runs low.
             </p>
-            <Button.Secondary onClick={() => void persist()} className="self-start text-base">
+            <Button.Secondary
+              onClick={() => void persist()}
+              className="self-start text-base"
+            >
               <ShieldCheck size={18} /> Keep my music safe
             </Button.Secondary>
           </div>
@@ -102,6 +126,6 @@ export default function StorageSettings() {
             Sync once to see how much of your GitHub storage is used.
           </p>
         ))}
-    </section>
+    </SettingsSection>
   );
 }

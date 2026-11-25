@@ -207,3 +207,14 @@ export async function expectPlaying(page: Page, src: RegExp) {
 
 export const songRow = (page: Page, title: string) =>
   page.locator("div.group").filter({ has: page.getByText(title, { exact: true }) });
+
+// Opens Settings with the GitHub backup section unfolded (when signed in).
+export async function openSettings(page: Page) {
+  await page.goto("/#/settings");
+  await expect(page.getByText("Change Theme")).toBeVisible();
+  const summary = page.locator("summary", { has: page.getByRole("heading", { name: "GitHub backup" }) });
+  if ((await summary.count()) === 0) return;
+  const section = summary.locator("..");
+  if ((await section.getAttribute("open")) === null) await summary.click();
+  await expect(section).toHaveAttribute("open", "");
+}
