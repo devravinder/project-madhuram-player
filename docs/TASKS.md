@@ -94,3 +94,4 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 - [x] Split files of public libraries play part by part through the service worker (Range requests, seeking); e2e tests block service workers so they never reach GitHub
 - [x] Screen stays on while sync, upload or download runs (Screen Wake Lock; taken again when the app is back)
 - [x] Explore downloads keep their spinner and progress after leaving the page and coming back
+- [x] Uploads resume part by part after a reload, restart or lost connection; parts already on GitHub are not sent again

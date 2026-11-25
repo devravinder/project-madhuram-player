@@ -101,3 +101,15 @@ export type FollowedSource = {
   updatedAt: Date;
   removed?: boolean; // kept so an unfollow reaches other devices
 };
+
+// A part of an unfinished upload that already reached GitHub, so a
+// resumed upload skips it. Removed once the song is in the library.
+export type UploadedPart = {
+  id: string; // `${trackId}:${repo}:${path}`
+  trackId: string;
+  fileSha256: string; // the whole file the part was cut from
+  repo: string;
+  path: string;
+  bytes: number;
+  sha: string; // the blob on GitHub
+};

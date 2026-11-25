@@ -1,4 +1,6 @@
 import { GithubApi, isConflict } from "@/services/github/api";
+import db from "@/services/db";
+import { HttpError } from "@/services/httpError";
 import {
   SCHEMA_VERSION,
   type FileRef,
@@ -15,6 +17,58 @@ import type { TrackFiles, TrackMeta } from "@/services/storage/types";
 import { manifestPath, partPath, splitBlob } from "./split";
 
 const MAX_COMMIT_ATTEMPTS = 5;
+
+const partKey = (trackId: string, part: { repo: string; path: string }) =>
+  `${trackId}:${part.repo}:${part.path}`;
+
+// The blob of a part an earlier attempt already sent, if it was cut from
+// the same file into the same place.
+async function uploadedPartSha(
+  trackId: string,
+  fileSha256: string,
+  part: { repo: string; path: string; blob: Blob },
+): Promise<string | undefined> {
+  const saved = await db.uploadedParts.get(partKey(trackId, part));
+  return saved &&
+    saved.fileSha256 === fileSha256 &&
+    saved.bytes === part.blob.size
+    ? saved.sha
+    : undefined;
+}
+
+// Sends one part and remembers it right away, so a stop after this point
+// does not send it again.
+async function sendPart(
+  api: GithubApi,
+  owner: string,
+  trackId: string,
+  fileSha256: string,
+  part: { repo: string; path: string; blob: Blob },
+): Promise<string> {
+  const sha = await api.createBlob(owner, part.repo, part.blob);
+  await db.uploadedParts.put({
+    id: partKey(trackId, part),
+    trackId,
+    fileSha256,
+    repo: part.repo,
+    path: part.path,
+    bytes: part.blob.size,
+    sha,
+  });
+  return sha;
+}
+
+// GitHub drops blobs that nothing points to after a while; a commit that
+// names one is refused (422). Then the parts are sent again next time.
+async function forgetStaleParts(trackId: string, error: unknown) {
+  if (
+    error instanceof HttpError &&
+    error.status === 422 &&
+    !isConflict(error)
+  ) {
+    await db.uploadedParts.where("trackId").equals(trackId).delete();
+  }
+}
 
 // The blob API takes base64 in JSON (a third larger), and GitHub answers 422
 // for big blobs, so parts stay at 24.5 MiB even if a library's index allows more.
@@ -184,7 +238,12 @@ export async function uploadTrack(
   const refs: PartRef[] = [];
   const byRepo = new Map<string, { path: string; sha: string }[]>();
   for (const [done, part] of planned.entries()) {
-    const sha = await api.createBlob(owner, part.repo, part.blob);
+    const fileSha = part.file === "media" ? mediaSha : coverSha!;
+    // Parts saved by an earlier, unfinished attempt (reload, restart,
+    // lost connection) are not sent again.
+    const sha =
+      (await uploadedPartSha(meta.id, fileSha, part)) ??
+      (await sendPart(api, owner, meta.id, fileSha, part));
     refs.push({
       n: part.n,
       repo: part.repo,
@@ -208,9 +267,14 @@ export async function uploadTrack(
   }
 
   const message = `Add ${meta.title}`;
-  for (const [repo, parts] of byRepo) {
-    if (repo !== library.repo)
-      await commitShardParts(api, owner, repo, message, parts);
+  try {
+    for (const [repo, parts] of byRepo) {
+      if (repo !== library.repo)
+        await commitShardParts(api, owner, repo, message, parts);
+    }
+  } catch (error) {
+    await forgetStaleParts(meta.id, error);
+    throw error;
   }
 
   const partsOf = (file: "media" | "cover") =>
@@ -235,21 +299,28 @@ export async function uploadTrack(
     manifest: manifestPath(meta.id),
   };
 
-  await library.update((current) => {
-    const tracks = current.tracks.filter((t) => t.id !== meta.id);
-    const repos = current.repos.map((repo) => ({
-      ...repo,
-      usedBytes: repo.usedBytes + (addedBytes.get(repo.name) ?? 0),
-    }));
-    return {
-      message,
-      index: { ...current, tracks: [...tracks, entry], repos },
-      text: [
-        { path: entry.manifest, content: JSON.stringify(manifest, null, 2) },
-      ],
-      blobs: byRepo.get(library.repo) ?? [],
-    };
-  });
+  try {
+    await library.update((current) => {
+      const tracks = current.tracks.filter((t) => t.id !== meta.id);
+      const repos = current.repos.map((repo) => ({
+        ...repo,
+        usedBytes: repo.usedBytes + (addedBytes.get(repo.name) ?? 0),
+      }));
+      return {
+        message,
+        index: { ...current, tracks: [...tracks, entry], repos },
+        text: [
+          { path: entry.manifest, content: JSON.stringify(manifest, null, 2) },
+        ],
+        blobs: byRepo.get(library.repo) ?? [],
+      };
+    });
+  } catch (error) {
+    await forgetStaleParts(meta.id, error);
+    throw error;
+  }
 
+  // The song is in the library; nothing is left to resume.
+  await db.uploadedParts.where("trackId").equals(meta.id).delete();
   return entry;
 }

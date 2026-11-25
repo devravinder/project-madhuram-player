@@ -43,6 +43,8 @@ export const deleteSong = async (
   if (song.coverImageId) await deleteFile(song.coverImageId);
 
   await db[COLLECTIONS.SONGS_COLLECTION].delete(id);
+  // Parts of an unfinished upload of this song are no longer needed.
+  await db.uploadedParts.where("trackId").equals(id).delete();
   if (keepInPlaylists) return;
 
   const playlists = await getPlaylists();

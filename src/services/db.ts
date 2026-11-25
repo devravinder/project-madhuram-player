@@ -7,6 +7,7 @@ import type {
   PlaylistTombstone,
   Song,
   SyncRecord,
+  UploadedPart,
 } from "@/types/music";
 import { DB_NAME } from "@/constants";
 import { confirmToast } from "./confirmToast";
@@ -19,6 +20,7 @@ export const COLLECTIONS = {
   SYNC_STATE_COLLECTION: "syncState",
   PLAYLIST_TOMBSTONES_COLLECTION: "playlistTombstones",
   FOLLOWED_SOURCES_COLLECTION: "followedSources",
+  UPLOADED_PARTS_COLLECTION: "uploadedParts",
 } as const;
 
 class AppDB extends Dexie {
@@ -35,6 +37,7 @@ class AppDB extends Dexie {
     FollowedSource,
     "address"
   >;
+  [COLLECTIONS.UPLOADED_PARTS_COLLECTION]!: EntityTable<UploadedPart, "id">;
 
   constructor() {
     super(DB_NAME);
@@ -118,6 +121,11 @@ class AppDB extends Dexie {
     this.version(10).stores({
       [COLLECTIONS.FOLLOWED_SOURCES_COLLECTION]: "address",
     });
+
+    // Parts already on GitHub for uploads not finished yet.
+    this.version(11).stores({
+      [COLLECTIONS.UPLOADED_PARTS_COLLECTION]: "id,trackId",
+    });
   }
 }
 
@@ -129,7 +137,11 @@ export const clearData = async (reload: boolean = true) => {
 };
 
 // Asks in an in-app notice, never a browser pop-up.
-export const clearDataWithPrompt = async (question: { title: string; description: string; confirmLabel: string }) => {
+export const clearDataWithPrompt = async (question: {
+  title: string;
+  description: string;
+  confirmLabel: string;
+}) => {
   const reset = await confirmToast({ ...question, destructive: true });
 
   if (reset) {
@@ -151,7 +163,8 @@ export async function initDB() {
         () =>
           void clearDataWithPrompt({
             title: "Saved data could not be upgraded",
-            description: "It is not compatible with this version. Reset the data on this device?",
+            description:
+              "It is not compatible with this version. Reset the data on this device?",
             confirmLabel: "Reset",
           }),
         1000,

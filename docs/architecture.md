@@ -130,6 +130,14 @@ Files above the part size are cut into raw byte parts. Within one repository, pa
 shard repository, they are committed there first and the manifest and index follow in the
 primary repository. A failure in between leaves only unreferenced parts, which a retry reuses.
 
+**Resume.** Each part sent is recorded on the device (`uploadedParts`: song, repo, path,
+blob id, and the hash of the file it was cut from) right after GitHub accepts it. After a
+reload, a restart or a lost connection, the queued upload runs again and skips every
+recorded part, so only the missing parts are sent. A changed file does not match the
+records and is sent in full. If GitHub has since removed a part nothing pointed to, the
+commit is refused (422); the records are dropped and the next try sends every part. The
+records go once the song is in the library.
+
 ```mermaid
 sequenceDiagram
   participant O as Outbox
