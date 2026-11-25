@@ -288,3 +288,47 @@ test("deleting a song that is not backed up asks in the app, and Cancel keeps it
   await (await ask()).getByRole("button", { name: "Delete", exact: true }).click();
   await expect(page.getByText("0 songs")).toBeVisible();
 });
+
+test("renames a backed-up song, saves its file, and deletes a library", async ({ page }) => {
+  const { songRow } = await import("./fixtures");
+  const SECOND = `${REPO}-2`;
+  await signInWithFake(page);
+  await importFiles(page, [{ name: "Old Name.wav", buffer: wavBuffer(2) }]);
+  await openSettings(page);
+  await uploadAll(page, 1);
+  await expect(page.getByText("Every song is backed up.")).toBeVisible({ timeout: 20_000 });
+
+  // Rename: the new name reaches GitHub without sending the file again.
+  await page.goto("/#/library");
+  await songRow(page, "Old Name").locator('[aria-haspopup="menu"]').click();
+  await page.getByRole("menuitem", { name: "Rename" }).click();
+  const dialog = page.getByRole("dialog", { name: "Rename song" });
+  await dialog.getByLabel("Title").fill("New Name");
+  await dialog.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("New Name", { exact: true })).toBeVisible();
+  await expect.poll(() => remoteTitles(page), { timeout: 15_000 }).toEqual(["New Name"]);
+
+  // Download file: the original file, named after the song.
+  await songRow(page, "New Name").locator('[aria-haspopup="menu"]').click();
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("menuitem", { name: "Download file" }).click(),
+  ]);
+  expect(download.suggestedFilename()).toBe("New Name.wav");
+
+  // Delete a library: the name is typed to confirm; the last one stays.
+  await openSettings(page);
+  await librariesShown(page);
+  await page.getByRole("button", { name: "Add library" }).click();
+  await page.getByRole("button", { name: "Create" }).click();
+  await expect(page.locator("li", { hasText: SECOND })).toBeVisible({ timeout: 15_000 });
+  await page.getByRole("button", { name: `Delete ${SECOND}`, exact: true }).click();
+  const confirm = page.getByRole("button", { name: "Delete library" });
+  await expect(confirm).toBeDisabled();
+  await page.getByLabel(`Type ${SECOND} to confirm`).fill(SECOND);
+  await confirm.click();
+  await expect(page.locator("li", { hasText: SECOND })).toHaveCount(0, { timeout: 15_000 });
+  expect(await page.evaluate((r) => (window as any).__fake.repos.has(r), SECOND)).toBe(false);
+  expect(await remoteTitles(page)).toEqual(["New Name"]);
+  await expect(page.getByRole("button", { name: `Delete ${REPO}`, exact: true })).toHaveCount(0);
+});

@@ -85,3 +85,6 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 - [x] Explore shows My libraries (private ones too, read with the token) and Following; a new device offers Download all or Browse
 - [x] Settings sections fold (open state remembered); dev tools available in production, loaded only when opened
 - [x] Default repo names: `music-library` and `music-library-home`
+- [x] Delete a library (type the name to confirm; overflow repos too; songs stay on the device)
+- [x] Download a song's file to the device, in its original format
+- [x] Rename a song (title, artist, album); renames sync without re-uploading the file

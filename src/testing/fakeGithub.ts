@@ -51,7 +51,10 @@ export class FakeGithub {
   private beforeRefUpdate?: () => Promise<void>;
   private counter = 0;
   // Folder ids from tree listings, so nested trees can be fetched.
-  private readonly folders = new Map<string, { snapshot: Snapshot; prefix: string }>();
+  private readonly folders = new Map<
+    string,
+    { snapshot: Snapshot; prefix: string }
+  >();
 
   constructor(login = "tester", token = "good-token") {
     this.login = login;
@@ -123,7 +126,9 @@ export class FakeGithub {
     const url = new URL(typeof input === "string" ? input : String(input));
     const method = init?.method ?? "GET";
     const headers = new Headers(init?.headers);
-    this.requests.push(`${method} ${url.host === "raw.githubusercontent.com" ? "raw:" : ""}${url.pathname}`);
+    this.requests.push(
+      `${method} ${url.host === "raw.githubusercontent.com" ? "raw:" : ""}${url.pathname}`,
+    );
 
     if (url.host === "raw.githubusercontent.com") return this.raw(url);
 
@@ -164,7 +169,8 @@ export class FakeGithub {
       return json({ login: this.login, avatar_url: "https://example/a.png" });
     }
     if (method === "GET" && path === "/user/repos") return this.listRepos(url);
-    if (method === "POST" && path === "/user/repos") return this.createRepo(body);
+    if (method === "POST" && path === "/user/repos")
+      return this.createRepo(body);
 
     const match = path.match(/^\/repos\/([^/]+)\/([^/]+)(\/.*)?$/);
     if (!match) return failure(404, "Not Found");
@@ -178,13 +184,26 @@ export class FakeGithub {
       if (typeof body?.private === "boolean") repo.private = body.private;
       return json(this.repoJson(repo));
     }
+    if (method === "DELETE" && rest === "") {
+      this.repos.delete(name);
+      return new Response(null, { status: 204 });
+    }
 
     if (method === "PUT" && rest.startsWith("/contents/")) {
       const file = decodeURIComponent(rest.slice(10));
-      await this.commitTo(repo, { [file]: base64ToBytes(body.content) }, body.message);
+      await this.commitTo(
+        repo,
+        { [file]: base64ToBytes(body.content) },
+        body.message,
+      );
       return json({ content: { path: file } }, 201);
-    }    if (method === "GET" && rest.startsWith("/contents/")) {
-      return this.contents(repo, decodeURIComponent(rest.slice(10)), url.searchParams.get("ref"));
+    }
+    if (method === "GET" && rest.startsWith("/contents/")) {
+      return this.contents(
+        repo,
+        decodeURIComponent(rest.slice(10)),
+        url.searchParams.get("ref"),
+      );
     }
     if (method === "GET" && rest.startsWith("/git/trees/")) {
       return this.rootTree(repo, decodeURIComponent(rest.slice(11)));
@@ -201,14 +220,19 @@ export class FakeGithub {
     }
     if (method === "GET" && rest.startsWith("/git/commits/")) {
       const commit = repo.commits.get(rest.slice(13));
-      return commit ? json({ sha: rest.slice(13), tree: { sha: commit.tree } }) : failure(404, "Not Found");
+      return commit
+        ? json({ sha: rest.slice(13), tree: { sha: commit.tree } })
+        : failure(404, "Not Found");
     }
     if (method === "GET" && rest.startsWith("/git/blobs/")) {
       return this.readBlob(repo, rest.slice(11), headers);
     }
-    if (method === "POST" && rest === "/git/blobs") return this.createBlob(repo, body);
-    if (method === "POST" && rest === "/git/trees") return this.createTree(repo, body);
-    if (method === "POST" && rest === "/git/commits") return this.createCommit(repo, body);
+    if (method === "POST" && rest === "/git/blobs")
+      return this.createBlob(repo, body);
+    if (method === "POST" && rest === "/git/trees")
+      return this.createTree(repo, body);
+    if (method === "POST" && rest === "/git/commits")
+      return this.createCommit(repo, body);
     if (method === "PATCH" && rest.startsWith("/git/refs/heads/")) {
       return this.updateRef(repo, decodeURIComponent(rest.slice(16)), body);
     }
@@ -227,10 +251,12 @@ export class FakeGithub {
     const sha = this.headSnapshot(repo)[rest.map(decodeURIComponent).join("/")];
     const bytes = sha ? repo.blobs.get(sha) : undefined;
     return bytes
-      ? new Response(bytes as BodyInit, { status: 200, headers: { "access-control-allow-origin": "*" } })
+      ? new Response(bytes as BodyInit, {
+          status: 200,
+          headers: { "access-control-allow-origin": "*" },
+        })
       : new Response("404: Not Found", { status: 404 });
   }
-
 
   private listRepos(url: URL) {
     const page = Number(url.searchParams.get("page") ?? 1);
@@ -239,7 +265,11 @@ export class FakeGithub {
     return json(all.slice((page - 1) * size, page * size));
   }
 
-  private async createRepo(body: { name: string; private?: boolean; auto_init?: boolean }) {
+  private async createRepo(body: {
+    name: string;
+    private?: boolean;
+    auto_init?: boolean;
+  }) {
     if (this.repos.has(body.name)) {
       return json(
         {
@@ -251,7 +281,12 @@ export class FakeGithub {
     }
     const repo = this.emptyRepo(body.name, body.private ?? true);
     this.repos.set(body.name, repo);
-    if (body.auto_init) await this.commitTo(repo, { "README.md": `# ${body.name}\n` }, "Initial commit");
+    if (body.auto_init)
+      await this.commitTo(
+        repo,
+        { "README.md": `# ${body.name}\n` },
+        "Initial commit",
+      );
     return json(this.repoJson(repo), 201);
   }
 
@@ -259,7 +294,9 @@ export class FakeGithub {
     if (!repo.branches.size) return failure(404, "This repository is empty.");
     const commit = ref ? repo.commits.get(ref) : undefined;
     if (ref && !commit) return failure(404, "No commit found for the ref");
-    const snapshot = commit ? repo.trees.get(commit.tree)! : this.headSnapshot(repo);
+    const snapshot = commit
+      ? repo.trees.get(commit.tree)!
+      : this.headSnapshot(repo);
     const sha = snapshot[path];
     if (!sha) return failure(404, "Not Found");
 
@@ -289,16 +326,31 @@ export class FakeGithub {
     return this.listing(repo, repo.trees.get(treeSha)!, "", treeSha);
   }
 
-  private async listing(repo: FakeRepo, snapshot: Snapshot, prefix: string, sha: string) {
-    const entries = new Map<string, { path: string; type: string; sha: string; size?: number }>();
+  private async listing(
+    repo: FakeRepo,
+    snapshot: Snapshot,
+    prefix: string,
+    sha: string,
+  ) {
+    const entries = new Map<
+      string,
+      { path: string; type: string; sha: string; size?: number }
+    >();
     for (const [path, blob] of Object.entries(snapshot)) {
       if (!path.startsWith(prefix)) continue;
       const [first, ...tail] = path.slice(prefix.length).split("/");
       if (!tail.length) {
-        entries.set(first, { path: first, type: "blob", sha: blob, size: repo.blobs.get(blob)?.length });
+        entries.set(first, {
+          path: first,
+          type: "blob",
+          sha: blob,
+          size: repo.blobs.get(blob)?.length,
+        });
       } else if (!entries.has(first)) {
         const inner = `${prefix}${first}/`;
-        const id = await sha1Hex(`folder ${JSON.stringify(Object.entries(snapshot).sort())} ${inner}`);
+        const id = await sha1Hex(
+          `folder ${JSON.stringify(Object.entries(snapshot).sort())} ${inner}`,
+        );
         this.folders.set(id, { snapshot, prefix: inner });
         entries.set(first, { path: first, type: "tree", sha: id });
       }
@@ -315,8 +367,14 @@ export class FakeGithub {
     return json({ sha, encoding: "base64", content: bytesToBase64(bytes) });
   }
 
-  private async createBlob(repo: FakeRepo, body: { content: string; encoding: string }) {
-    const bytes = body.encoding === "base64" ? base64ToBytes(body.content) : toBytes(body.content);
+  private async createBlob(
+    repo: FakeRepo,
+    body: { content: string; encoding: string },
+  ) {
+    const bytes =
+      body.encoding === "base64"
+        ? base64ToBytes(body.content)
+        : toBytes(body.content);
     const sha = await gitBlobSha(new Blob([bytes as BlobPart]));
     repo.blobs.set(sha, bytes);
     return json({ sha }, 201);
@@ -326,13 +384,18 @@ export class FakeGithub {
     repo: FakeRepo,
     body: { base_tree?: string; tree: { path: string; sha: string | null }[] },
   ) {
-    const snapshot: Snapshot = { ...(body.base_tree ? repo.trees.get(body.base_tree) : {}) };
+    const snapshot: Snapshot = {
+      ...(body.base_tree ? repo.trees.get(body.base_tree) : {}),
+    };
     for (const entry of body.tree) {
       if (entry.sha === null) delete snapshot[entry.path];
-      else if (!repo.blobs.has(entry.sha)) return failure(422, "Tree entry references a missing blob");
+      else if (!repo.blobs.has(entry.sha))
+        return failure(422, "Tree entry references a missing blob");
       else snapshot[entry.path] = entry.sha;
     }
-    const sha = await sha1Hex(`tree ${JSON.stringify(Object.entries(snapshot).sort())}`);
+    const sha = await sha1Hex(
+      `tree ${JSON.stringify(Object.entries(snapshot).sort())}`,
+    );
     repo.trees.set(sha, snapshot);
     return json({ sha }, 201);
   }
@@ -341,12 +404,18 @@ export class FakeGithub {
     repo: FakeRepo,
     body: { message: string; tree: string; parents: string[] },
   ) {
-    const sha = await sha1Hex(`commit ${++this.counter} ${JSON.stringify(body)}`);
+    const sha = await sha1Hex(
+      `commit ${++this.counter} ${JSON.stringify(body)}`,
+    );
     repo.commits.set(sha, { tree: body.tree, parents: body.parents });
     return json({ sha }, 201);
   }
 
-  private async updateRef(repo: FakeRepo, branch: string, body: { sha: string }) {
+  private async updateRef(
+    repo: FakeRepo,
+    branch: string,
+    body: { sha: string },
+  ) {
     if (this.beforeRefUpdate) {
       const run = this.beforeRefUpdate;
       this.beforeRefUpdate = undefined;
@@ -375,7 +444,10 @@ export class FakeGithub {
   }
 
   private repoJson(repo: FakeRepo) {
-    const bytes = [...repo.blobs.values()].reduce((sum, b) => sum + b.length, 0);
+    const bytes = [...repo.blobs.values()].reduce(
+      (sum, b) => sum + b.length,
+      0,
+    );
     return {
       name: repo.name,
       private: repo.private,
@@ -403,7 +475,9 @@ export class FakeGithub {
       repo.blobs.set(sha, bytes);
       snapshot[path] = sha;
     }
-    const tree = await sha1Hex(`tree ${JSON.stringify(Object.entries(snapshot).sort())}`);
+    const tree = await sha1Hex(
+      `tree ${JSON.stringify(Object.entries(snapshot).sort())}`,
+    );
     repo.trees.set(tree, snapshot);
     const parent = repo.branches.get(BRANCH);
     const commit = await sha1Hex(`commit ${++this.counter} ${message}`);

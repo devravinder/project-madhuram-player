@@ -61,3 +61,15 @@ export const resetSongs = async (songs: Song[]) => {
 
   await db[COLLECTIONS.SONGS_COLLECTION].bulkAdd(songs);
 };
+
+export type SongNames = { title: string; artist: string; album: string };
+
+// The edit time lets sync tell which device renamed it last.
+export const renameSong = async (id: string, names: SongNames) => {
+  await db.songs.update(id, {
+    title: names.title.trim(),
+    artist: names.artist.trim(),
+    album: names.album.trim(),
+    updatedAt: new Date(),
+  });
+};

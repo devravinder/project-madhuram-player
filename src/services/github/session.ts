@@ -104,6 +104,21 @@ export async function setDefaultLibrary(home: LibraryRepo, name: string) {
   return homeInfo(index);
 }
 
+// Takes a library off the home list; the default moves to the first one left.
+export async function removeLibrary(home: LibraryRepo, name: string) {
+  const index = await home.update((current) => {
+    const libraries = (current.libraries ?? []).filter((n) => n !== name);
+    if (libraries.length === (current.libraries ?? []).length) return undefined;
+    const defaultLibrary =
+      current.defaultLibrary === name ? libraries[0] : current.defaultLibrary;
+    return {
+      message: `Remove library ${name}`,
+      index: { ...current, libraries, defaultLibrary },
+    };
+  });
+  return homeInfo(index);
+}
+
 // The next free default-looking name: music-library, -2, -3 ...
 export function suggestLibraryName(base: string, taken: string[]): string {
   if (!taken.includes(base)) return base;

@@ -14,7 +14,7 @@ import {
   type RunOptions,
   type RunResult,
 } from "./outbox";
-import { planSync } from "./planner";
+import { namesDiffer, namesOf, planSync } from "./planner";
 import { removeRemoteTrack } from "./remove";
 import { uploadTrack, type UploadOptions } from "./upload";
 
@@ -23,7 +23,7 @@ import { uploadTrack, type UploadOptions } from "./upload";
 export type SyncMode = "both" | "download";
 
 const allows = (mode: SyncMode, op: OutboxOp) =>
-  mode === "both" || op === "pull";
+  mode === "both" || op === "pull" || op === "pull-meta";
 
 export type SyncContext = {
   libraries: LibraryRepo[]; // every library of the user, opened
@@ -129,6 +129,35 @@ async function pull(ctx: SyncContext, item: OutboxItem) {
   await pullTrack(libraryOf(ctx, item.library), item.trackId, ctx.device);
 }
 
+// A rename made here goes into the library's index; the file stays as it is.
+async function pushMeta(ctx: SyncContext, item: OutboxItem) {
+  const meta = await ctx.device.getTrack(item.trackId);
+  if (!meta) return;
+  await libraryOf(ctx, item.library).update((current) => {
+    const entry = current.tracks.find(
+      (t) => t.id === item.trackId && !t.deleted,
+    );
+    if (!entry || !namesDiffer(entry, meta)) return undefined;
+    const tracks = current.tracks.map((t) =>
+      t.id === item.trackId
+        ? { ...t, ...namesOf(meta), updatedAt: meta.updatedAt }
+        : t,
+    );
+    return { message: `Rename ${meta.title}`, index: { ...current, tracks } };
+  });
+}
+
+// A rename made on another device; nothing is downloaded.
+async function pullMeta(ctx: SyncContext, item: OutboxItem) {
+  const { index } = await libraryOf(ctx, item.library).read();
+  const entry = index.tracks.find((t) => t.id === item.trackId && !t.deleted);
+  if (!entry) return;
+  await db.songs.update(item.trackId, {
+    ...namesOf(entry),
+    updatedAt: new Date(entry.updatedAt),
+  });
+}
+
 async function deleteRemote(ctx: SyncContext, item: OutboxItem) {
   await removeRemoteTrack(libraryOf(ctx, item.library), item.trackId);
   await db.syncState.delete(item.trackId);
@@ -152,6 +181,10 @@ export function createHandler(ctx: SyncContext): OutboxHandler {
         return deleteRemote(ctx, item);
       case "delete-local":
         return deleteLocal(ctx, item);
+      case "push-meta":
+        return pushMeta(ctx, item);
+      case "pull-meta":
+        return pullMeta(ctx, item);
     }
   };
 }

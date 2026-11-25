@@ -4,6 +4,17 @@ import type { OutboxOp, SyncRecord } from "@/types/music";
 
 export type SyncStep = { op: OutboxOp; trackId: string };
 
+type Names = Pick<TrackMeta, "title" | "artist" | "album">;
+
+export const namesOf = ({ title, artist, album }: Names): Names => ({
+  title,
+  artist,
+  album,
+});
+
+export const namesDiffer = (a: Names, b: Names) =>
+  a.title !== b.title || a.artist !== b.artist || a.album !== b.album;
+
 export type PlanOptions = {
   // Bring back tracks that were removed from this device only.
   restoreDeviceRemoved?: boolean;
@@ -20,7 +31,9 @@ export function planSync(
   records: SyncRecord[],
   options: PlanOptions = {},
 ): SyncStep[] {
-  const synced = new Map(records.map((record) => [record.trackId, record.sha256]));
+  const synced = new Map(
+    records.map((record) => [record.trackId, record.sha256]),
+  );
   const deviceRemoved = new Set(
     records.filter((record) => record.deviceRemoved).map((r) => r.trackId),
   );
@@ -42,14 +55,28 @@ export function planSync(
     }
 
     const localSha = track.sha256 ?? synced.get(track.id);
-    if (!localSha || localSha === entry.sha256) continue;
+    if (localSha && localSha === entry.sha256) {
+      // Same file; only a rename can differ, and the newer edit wins.
+      if (synced.has(track.id) && namesDiffer(track, entry)) {
+        const newerHere = track.updatedAt > entry.updatedAt;
+        steps.push({
+          op: newerHere ? "push-meta" : "pull-meta",
+          trackId: track.id,
+        });
+      }
+      continue;
+    }
+    if (!localSha) continue;
 
     const lastSynced = synced.get(track.id);
     const localChanged = lastSynced !== undefined && lastSynced !== localSha;
-    const remoteChanged = lastSynced !== undefined && lastSynced !== entry.sha256;
+    const remoteChanged =
+      lastSynced !== undefined && lastSynced !== entry.sha256;
 
-    if (localChanged && !remoteChanged) steps.push({ op: "push", trackId: track.id });
-    else if (remoteChanged && !localChanged) steps.push({ op: "pull", trackId: track.id });
+    if (localChanged && !remoteChanged)
+      steps.push({ op: "push", trackId: track.id });
+    else if (remoteChanged && !localChanged)
+      steps.push({ op: "pull", trackId: track.id });
     else {
       // Both changed, or unknown: the newer edit wins.
       const newerHere = track.updatedAt > entry.updatedAt;
@@ -61,7 +88,8 @@ export function planSync(
     if (entry.deleted || localIds.has(entry.id)) continue;
     if (deviceRemoved.has(entry.id)) {
       // Kept on GitHub only: just a download sync brings it back.
-      if (options.restoreDeviceRemoved) steps.push({ op: "pull", trackId: entry.id });
+      if (options.restoreDeviceRemoved)
+        steps.push({ op: "pull", trackId: entry.id });
       continue;
     }
     // Synced before but missing here: it was deleted on this device.

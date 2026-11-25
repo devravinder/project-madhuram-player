@@ -13,20 +13,68 @@ const base = {
   addedAt: "2026-01-01T00:00:00.000Z",
 };
 
-const local = (id: string, sha?: string, updatedAt = "2026-01-01T00:00:00.000Z"): TrackMeta => ({
-  ...base, id, title: id, sha256: sha, updatedAt,
+const local = (
+  id: string,
+  sha?: string,
+  updatedAt = "2026-01-01T00:00:00.000Z",
+): TrackMeta => ({
+  ...base,
+  id,
+  title: id,
+  sha256: sha,
+  updatedAt,
 });
 
-const remote = (id: string, sha: string, extra: Partial<TrackEntry> = {}): TrackEntry => ({
-  ...base, id, title: id, sha256: sha, updatedAt: "2026-01-01T00:00:00.000Z",
-  manifest: `manifests/${id}.json`, ...extra,
+const remote = (
+  id: string,
+  sha: string,
+  extra: Partial<TrackEntry> = {},
+): TrackEntry => ({
+  ...base,
+  id,
+  title: id,
+  sha256: sha,
+  updatedAt: "2026-01-01T00:00:00.000Z",
+  manifest: `manifests/${id}.json`,
+  ...extra,
 });
 
-const record = (trackId: string, sha256: string) => ({ trackId, sha256, library: "lib" });
+const record = (trackId: string, sha256: string) => ({
+  trackId,
+  sha256,
+  library: "lib",
+});
 
 describe("planSync", () => {
+  it("sends a rename made here, as names only", () => {
+    const renamed = {
+      ...local("a", "h", "2026-02-01T00:00:00.000Z"),
+      title: "New",
+    };
+    expect(planSync([renamed], [remote("a", "h")], [record("a", "h")])).toEqual(
+      [{ op: "push-meta", trackId: "a" }],
+    );
+  });
+
+  it("takes a newer rename from GitHub", () => {
+    const renamed = remote("a", "h", {
+      title: "New",
+      updatedAt: "2026-02-01T00:00:00.000Z",
+    });
+    expect(planSync([local("a", "h")], [renamed], [record("a", "h")])).toEqual([
+      { op: "pull-meta", trackId: "a" },
+    ]);
+  });
+
+  it("does not rename a song this device never synced", () => {
+    expect(
+      planSync([local("a", "h")], [remote("a", "h", { title: "Other" })], []),
+    ).toEqual([]);
+  });
   it("pushes a new local track", () => {
-    expect(planSync([local("a", "h")], [], [])).toEqual([{ op: "push", trackId: "a" }]);
+    expect(planSync([local("a", "h")], [], [])).toEqual([
+      { op: "push", trackId: "a" },
+    ]);
   });
 
   it("leaves a new local track alone when new uploads are off", () => {
@@ -35,16 +83,25 @@ describe("planSync", () => {
 
   it("still sends an edit of a backed-up track when new uploads are off", () => {
     expect(
-      planSync([local("a", "new")], [remote("a", "old")], [record("a", "old")], { pushNew: false }),
+      planSync(
+        [local("a", "new")],
+        [remote("a", "old")],
+        [record("a", "old")],
+        { pushNew: false },
+      ),
     ).toEqual([{ op: "push", trackId: "a" }]);
   });
 
   it("pulls a new remote track", () => {
-    expect(planSync([], [remote("a", "h")], [])).toEqual([{ op: "pull", trackId: "a" }]);
+    expect(planSync([], [remote("a", "h")], [])).toEqual([
+      { op: "pull", trackId: "a" },
+    ]);
   });
 
   it("does nothing when both sides match", () => {
-    expect(planSync([local("a", "h")], [remote("a", "h")], [record("a", "h")])).toEqual([]);
+    expect(
+      planSync([local("a", "h")], [remote("a", "h")], [record("a", "h")]),
+    ).toEqual([]);
   });
 
   it("deletes remotely what was deleted here after a sync", () => {
@@ -60,15 +117,19 @@ describe("planSync", () => {
 
   it("brings back a track removed from this device only when asked", () => {
     const kept = { ...record("a", "h"), deviceRemoved: true };
-    expect(planSync([], [remote("a", "h")], [kept], { restoreDeviceRemoved: true })).toEqual([
-      { op: "pull", trackId: "a" },
-    ]);
+    expect(
+      planSync([], [remote("a", "h")], [kept], { restoreDeviceRemoved: true }),
+    ).toEqual([{ op: "pull", trackId: "a" }]);
   });
 
   it("deletes locally what was deleted elsewhere after a sync", () => {
-    expect(planSync([local("a", "h")], [remote("a", "h", { deleted: true })], [record("a", "h")])).toEqual([
-      { op: "delete-local", trackId: "a" },
-    ]);
+    expect(
+      planSync(
+        [local("a", "h")],
+        [remote("a", "h", { deleted: true })],
+        [record("a", "h")],
+      ),
+    ).toEqual([{ op: "delete-local", trackId: "a" }]);
   });
 
   it("deletes locally when the remote entry vanished after a sync", () => {
@@ -78,9 +139,9 @@ describe("planSync", () => {
   });
 
   it("does not resurrect a remote tombstone for an unsynced local track", () => {
-    expect(planSync([local("a", "h")], [remote("a", "h", { deleted: true })], [])).toEqual([
-      { op: "delete-local", trackId: "a" },
-    ]);
+    expect(
+      planSync([local("a", "h")], [remote("a", "h", { deleted: true })], []),
+    ).toEqual([{ op: "delete-local", trackId: "a" }]);
   });
 
   it("ignores tombstones for tracks that are not here", () => {
@@ -88,15 +149,15 @@ describe("planSync", () => {
   });
 
   it("pushes a local edit when only this side changed", () => {
-    expect(planSync([local("a", "new")], [remote("a", "old")], [record("a", "old")])).toEqual([
-      { op: "push", trackId: "a" },
-    ]);
+    expect(
+      planSync([local("a", "new")], [remote("a", "old")], [record("a", "old")]),
+    ).toEqual([{ op: "push", trackId: "a" }]);
   });
 
   it("pulls a remote edit when only the other side changed", () => {
-    expect(planSync([local("a", "old")], [remote("a", "new")], [record("a", "old")])).toEqual([
-      { op: "pull", trackId: "a" },
-    ]);
+    expect(
+      planSync([local("a", "old")], [remote("a", "new")], [record("a", "old")]),
+    ).toEqual([{ op: "pull", trackId: "a" }]);
   });
 
   it("lets the newer edit win when both sides changed", () => {
@@ -104,15 +165,25 @@ describe("planSync", () => {
     const newer = "2026-02-01T00:00:00.000Z";
 
     expect(
-      planSync([local("a", "mine", newer)], [remote("a", "theirs", { updatedAt: older })], [record("a", "base")]),
+      planSync(
+        [local("a", "mine", newer)],
+        [remote("a", "theirs", { updatedAt: older })],
+        [record("a", "base")],
+      ),
     ).toEqual([{ op: "push", trackId: "a" }]);
     expect(
-      planSync([local("a", "mine", older)], [remote("a", "theirs", { updatedAt: newer })], [record("a", "base")]),
+      planSync(
+        [local("a", "mine", older)],
+        [remote("a", "theirs", { updatedAt: newer })],
+        [record("a", "base")],
+      ),
     ).toEqual([{ op: "pull", trackId: "a" }]);
   });
 
   it("uses the last synced hash when a local track was never hashed", () => {
-    expect(planSync([local("a")], [remote("a", "h")], [record("a", "h")])).toEqual([]);
+    expect(
+      planSync([local("a")], [remote("a", "h")], [record("a", "h")]),
+    ).toEqual([]);
   });
 
   it("leaves an unhashed, unsynced track alone", () => {

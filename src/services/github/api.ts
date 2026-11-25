@@ -143,7 +143,11 @@ export class GithubApi {
     return response ? response.json() : null;
   }
 
-  async createRepo(name: string, description: string, isPrivate = true): Promise<Repo> {
+  async createRepo(
+    name: string,
+    description: string,
+    isPrivate = true,
+  ): Promise<Repo> {
     const response = await this.request("/user/repos", {
       method: "POST",
       body: { name, description, private: isPrivate, auto_init: true },
@@ -152,10 +156,21 @@ export class GithubApi {
   }
 
   // Needs the token's Administration permission, which the app already asks for.
-  async setRepoPrivate(owner: string, name: string, isPrivate: boolean): Promise<void> {
+  async setRepoPrivate(
+    owner: string,
+    name: string,
+    isPrivate: boolean,
+  ): Promise<void> {
     await this.request(`/repos/${owner}/${name}`, {
       method: "PATCH",
       body: { private: isPrivate },
+    });
+  }
+
+  // Needs the token's Administration permission. A missing repo is fine.
+  async deleteRepo(owner: string, name: string): Promise<void> {
+    await this.requestOrNull(`/repos/${owner}/${name}`, [404], {
+      method: "DELETE",
     });
   }
 
@@ -203,7 +218,12 @@ export class GithubApi {
     path: string,
   ): Promise<RepoFile | null> {
     const parts = path.split("/");
-    const folder = await this.findFolder(owner, repo, treeSha, parts.slice(0, -1));
+    const folder = await this.findFolder(
+      owner,
+      repo,
+      treeSha,
+      parts.slice(0, -1),
+    );
     const entry = folder?.find(
       (e) => e.path === parts[parts.length - 1] && e.type === "blob",
     );
@@ -219,7 +239,12 @@ export class GithubApi {
     treeSha: string,
     folder: string,
   ): Promise<TreeEntry[]> {
-    const entries = await this.findFolder(owner, repo, treeSha, folder.split("/"));
+    const entries = await this.findFolder(
+      owner,
+      repo,
+      treeSha,
+      folder.split("/"),
+    );
     return (entries ?? [])
       .filter((e) => e.type === "blob")
       .map((e) => ({ ...e, path: `${folder}/${e.path}` }));

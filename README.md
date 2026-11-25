@@ -18,7 +18,8 @@ installed like an app. It works offline, with no account and no server.
    - Nothing uploads by itself. Open "Not backed up", pick a library, and upload one song
      or all of them, leaving out large files if you like.
    - Libraries: keep several (`music-library`, `-2`, ...). Make one public and use
-     "Copy link" to share it; the others stay private.
+     "Copy link" to share it; the others stay private. Delete removes one from GitHub.
+   - Song menu: Rename (reaches your other devices) and Download file (saves the original).
    - Sync brings in songs from your other devices; Download brings back removed ones.
    - New device: Explore lists My libraries, to play or pick songs without fetching all.
    - Playlists sync by themselves to a private home repo. Removing the token keeps your music.

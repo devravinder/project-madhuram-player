@@ -40,6 +40,15 @@ import {
   type StopReason,
 } from "@/services/sync/outbox";
 import { syncPlaylists } from "@/services/sync/playlistsSync";
+import {
+  deleteLibrary as deleteLibraryRepos,
+  forgetLibrariesExcept,
+  LastLibraryError,
+} from "@/services/sync/deleteLibrary";
+import {
+  renameSong as renameLocalSong,
+  type SongNames,
+} from "@/services/songsService";
 import { syncSources } from "@/services/sync/sourcesSync";
 import type { OutboxItem } from "@/types/music";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -129,6 +138,8 @@ type SyncContextValue = {
   owner?: string;
   keptOnGithub: number; // songs removed from this device only
   deleteEverywhere: (trackId: string) => Promise<DeleteResult>;
+  deleteLibrary: (name: string) => Promise<string | undefined>; // a problem, if any
+  renameSong: (id: string, names: SongNames) => Promise<void>;
 };
 
 const SyncContext = createContext<SyncContextValue | undefined>(undefined);
@@ -248,6 +259,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         }
       }
       session.current = { key, home, info, libraries: opened };
+      // Libraries deleted on another device leave nothing behind here.
+      await forgetLibrariesExcept(info.libraries);
       return session.current;
     })();
     opening.current = { key, promise };
@@ -478,6 +491,53 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     [signedIn, openSession],
   );
 
+  // Deletes the library's repos on GitHub; its songs stay on this device.
+  // Returns a problem to show, if any.
+  const deleteLibrary = useCallback(
+    async (name: string): Promise<string | undefined> => {
+      let failure: string | undefined;
+      await withSession(async (current) => {
+        const library = current.libraries.find((l) => l.repo === name);
+        if (!library) {
+          failure = `${name} is not in your list.`;
+          return;
+        }
+        try {
+          const result = await deleteLibraryRepos(
+            current.home,
+            library,
+            current.info.libraries,
+          );
+          current.info = result.info;
+          current.libraries = current.libraries.filter((l) => l.repo !== name);
+          if (result.notDeleted.length > 0) {
+            failure = `Removed from your list, but GitHub did not delete ${result.notDeleted.join(", ")}. The token needs Administration (read and write), or delete it on GitHub.`;
+          }
+        } catch (problem) {
+          if (!(problem instanceof LastLibraryError)) throw problem;
+          failure = problem.message;
+        }
+      });
+      return failure;
+    },
+    [withSession],
+  );
+
+  // Renames on this device; a backed-up song is renamed on GitHub too, and
+  // other devices take the new name on their next sync.
+  const renameSong = useCallback(
+    async (id: string, names: SongNames) => {
+      await renameLocalSong(id, names);
+      const record = signedIn ? await db.syncState.get(id) : undefined;
+      if (!record || record.deviceRemoved) return;
+      await outbox.enqueue([
+        { op: "push-meta", trackId: id, library: record.library },
+      ]);
+      void resume();
+    },
+    [signedIn, resume],
+  );
+
   // Playlists and followed libraries follow the user without asking,
   // a moment after each change. They live in the private home repo.
   useEffect(() => {
@@ -574,6 +634,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         owner: user?.login,
         keptOnGithub,
         deleteEverywhere,
+        deleteLibrary,
+        renameSong,
       }}
     >
       {children}

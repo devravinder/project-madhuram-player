@@ -3,27 +3,73 @@ import { usePlaylists } from "@/context/PlaylistContext";
 import { useSync } from "@/context/SyncContext";
 import { getPlaylists, updatePlaylist } from "@/services/playlistService";
 import { confirmToast } from "@/services/confirmToast";
-import { deleteSong, getSong } from "@/services/songsService";
+import { deleteSong, getSong, type SongNames } from "@/services/songsService";
+import { FileNotOnDeviceError, saveToDisk } from "@/services/saveToDisk";
 import { isBackedUp, removeFromDeviceOnly } from "@/services/sync/deleteTrack";
 import type { Playlist } from "@/types/music";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { Check, ListMusic, ListPlus, MoreVertical, Trash } from "lucide-react";
+import {
+  Check,
+  FileDown,
+  ListMusic,
+  ListPlus,
+  MoreVertical,
+  Pencil,
+  Trash,
+} from "lucide-react";
 import { useEffect, useState, type MouseEventHandler } from "react";
 import { toast } from "sonner";
 import DeleteSongDialog, { type DeleteChoice } from "./DeleteSongDialog";
+import RenameSongDialog from "./RenameSongDialog";
 import { useSongsList } from "./SongListContext";
 
-const SongActions = ({
-  id,
-  isCurrent,
-}: {
-  id: string;
-  isCurrent: boolean;
-}) => {
+const itemClass =
+  "outline-none text-muted-foreground flex flex-row items-center gap-2 px-4 py-2 rounded-md hover:bg-secondary/50 cursor-pointer transition-all duration-200";
+
+const SongActions = ({ id, isCurrent }: { id: string; isCurrent: boolean }) => {
   const { refetch } = useSongsList();
   const { setFavourites } = usePlaylists();
-  const { signedIn, deleteEverywhere } = useSync();
+  const { signedIn, deleteEverywhere, renameSong } = useSync();
   const [asking, setAsking] = useState<string>(); // title of the song asked about
+  const [renaming, setRenaming] = useState<SongNames>();
+
+  const startRename: MouseEventHandler<HTMLDivElement> = async (e) => {
+    e.stopPropagation();
+    const song = await getSong(id);
+    if (song)
+      setRenaming({
+        title: song.title,
+        artist: song.artist,
+        album: song.album,
+      });
+  };
+
+  const saveRename = async (names: SongNames) => {
+    setRenaming(undefined);
+    try {
+      await renameSong(id, names);
+      refetch();
+      toast.success("Renamed");
+    } catch {
+      toast.error("Could not rename the song");
+    }
+  };
+
+  const handleSaveFile: MouseEventHandler<HTMLDivElement> = async (e) => {
+    e.stopPropagation();
+    const song = await getSong(id);
+    if (!song) return;
+    try {
+      const name = await saveToDisk(song);
+      toast.success(`Saved ${name} to Downloads`);
+    } catch (error) {
+      toast.error(
+        error instanceof FileNotOnDeviceError
+          ? error.message
+          : "Could not save the file",
+      );
+    }
+  };
 
   const afterDelete = (fromPlaylists: boolean) => {
     if (fromPlaylists) setFavourites((pre) => pre.filter((i) => i !== id));
@@ -97,38 +143,48 @@ const SongActions = ({
 
   return (
     <>
-    {asking !== undefined && (
-      <DeleteSongDialog
-        title={asking}
-        onChoose={choose}
-        onClose={() => setAsking(undefined)}
-      />
-    )}
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger asChild>
-        <MoreVertical />
-      </DropdownMenu.Trigger>
+      {renaming && (
+        <RenameSongDialog
+          names={renaming}
+          onSave={(names) => void saveRename(names)}
+          onClose={() => setRenaming(undefined)}
+        />
+      )}
+      {asking !== undefined && (
+        <DeleteSongDialog
+          title={asking}
+          onChoose={choose}
+          onClose={() => setAsking(undefined)}
+        />
+      )}
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger asChild>
+          <MoreVertical />
+        </DropdownMenu.Trigger>
 
-      <DropdownMenu.Portal>
-        <DropdownMenu.Content
-          className="relative glass flex flex-col gap-2 px-4 py-2 mr-8 mt-2 rounded-lg w-52"
-          sideOffset={5}
-        >
-          <DropdownMenu.Item
-            onClick={handleDelete}
-            className="outline-none text-muted-foreground flex flex-row items-center gap-2 px-4 py-2 rounded-md hover:bg-secondary/50 cursor-pointer transition-all duration-200 "
+        <DropdownMenu.Portal>
+          <DropdownMenu.Content
+            className="relative glass flex flex-col gap-2 px-4 py-2 mr-8 mt-2 rounded-lg w-52"
+            sideOffset={5}
           >
-            <Trash size={20} /> Delete
-          </DropdownMenu.Item>
-          <DropdownMenu.Item
-            className="outline-none "
-            onClick={(e) => e.stopPropagation()}
-          >
-            <PlaylistMenu id={id} />
-          </DropdownMenu.Item>
-        </DropdownMenu.Content>
-      </DropdownMenu.Portal>
-    </DropdownMenu.Root>
+            <DropdownMenu.Item onClick={startRename} className={itemClass}>
+              <Pencil size={20} /> Rename
+            </DropdownMenu.Item>
+            <DropdownMenu.Item onClick={handleDelete} className={itemClass}>
+              <Trash size={20} /> Delete
+            </DropdownMenu.Item>
+            <DropdownMenu.Item onClick={handleSaveFile} className={itemClass}>
+              <FileDown size={20} /> Download file
+            </DropdownMenu.Item>
+            <DropdownMenu.Item
+              className="outline-none "
+              onClick={(e) => e.stopPropagation()}
+            >
+              <PlaylistMenu id={id} />
+            </DropdownMenu.Item>
+          </DropdownMenu.Content>
+        </DropdownMenu.Portal>
+      </DropdownMenu.Root>
     </>
   );
 };
@@ -142,7 +198,9 @@ const PlaylistMenu = ({ id }: { id: string }) => {
       : [...playlist.songIds, id];
     const updated = { ...playlist, songIds };
 
-    setPlaylists((prev) => prev.map((p) => (p.id === playlist.id ? updated : p)));
+    setPlaylists((prev) =>
+      prev.map((p) => (p.id === playlist.id ? updated : p)),
+    );
 
     await updatePlaylist(playlist.id, updated);
   };

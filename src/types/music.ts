@@ -58,7 +58,14 @@ export type AppFile = {
   createdAt: Date;
 };
 
-export type OutboxOp = "push" | "pull" | "delete-remote" | "delete-local";
+// push-meta and pull-meta carry a rename only; the file is not sent again.
+export type OutboxOp =
+  | "push"
+  | "pull"
+  | "delete-remote"
+  | "delete-local"
+  | "push-meta"
+  | "pull-meta";
 
 // One queued sync step; the key makes queuing the same step twice a no-op.
 export type OutboxItem = {

@@ -82,6 +82,16 @@ erDiagram
   }
 ```
 
+## Renaming and deleting
+
+- **Rename a song:** only `title`, `artist` and `album` change, with a new `updatedAt`. Sync
+  sends them as `push-meta` or takes them as `pull-meta`, rewriting the index entry only;
+  the file is never sent again. When both sides renamed, the newer edit wins.
+- **Delete a library:** the app first takes it off the home list, so no device opens or
+  re-creates it, then deletes its overflow repos and the library repo. Songs on the device
+  stay and show as not backed up. Other devices drop their sync records for it when they
+  next connect. The last library cannot be deleted.
+
 ## Reusing an existing repository
 
 On first sign-in the app looks for the library repo before creating anything. It never
