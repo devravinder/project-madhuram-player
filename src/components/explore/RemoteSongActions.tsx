@@ -1,31 +1,29 @@
 import { IconButton } from "@/components/Elements";
+import { useDownloads } from "@/hooks/useDownloads";
 import { useSavedHashes } from "@/hooks/useSavedHashes";
-import { downloadCopy } from "@/services/public/remote";
-import { withScreenOn } from "@/services/wakeLock";
+import { downloadSong } from "@/services/public/downloads";
 import type { Song } from "@/types/music";
 import { Check, Download, LoaderCircle } from "lucide-react";
-import { useState, type MouseEvent } from "react";
+import type { MouseEvent } from "react";
 import { toast } from "sonner";
 
-// Saves a track from a public library as the user's own copy.
+// Saves a track from a library on this device. The spinner stays while it
+// downloads, even after leaving the page and coming back.
 export default function RemoteSongActions({ song }: { song: Song }) {
   const saved = useSavedHashes();
-  const [busy, setBusy] = useState(false);
+  const busy = useDownloads().songs.has(song.id);
 
   const isSaved = !!song.sha256 && saved.has(song.sha256);
 
   const download = async (event: MouseEvent) => {
     event.stopPropagation();
     if (busy || isSaved) return;
-    setBusy(true);
     try {
-      await withScreenOn(() => downloadCopy(song));
+      await downloadSong(song);
       // Backing it up is the user's choice, in Settings.
       toast.success(`Saved ${song.title}`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Download failed");
-    } finally {
-      setBusy(false);
     }
   };
 
@@ -43,7 +41,7 @@ export default function RemoteSongActions({ song }: { song: Song }) {
 
   return (
     <IconButton
-      aria-label={`Download ${song.title}`}
+      aria-label={busy ? `Downloading ${song.title}` : `Download ${song.title}`}
       onClick={download}
       disabled={busy}
       className="h-9 w-9 disabled:opacity-60"

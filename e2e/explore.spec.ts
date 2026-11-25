@@ -100,3 +100,25 @@ test("a new device finds the user's private library in Explore and restores song
   });
   expect(saved).toEqual({ songs: ["mine2"], synced: ["mine2"] });
 });
+
+test("a download keeps its spinner after leaving the page and coming back", async ({ page, context }) => {
+  const raw = await routeRawToFake(context, page);
+  await tryWithoutLogin(page);
+  await seedPublicLibrary(page, "slow-share", [{ id: "slow1", title: "Slow Song", seconds: 24 }]);
+  await page.goto("/#/explore");
+  await page.getByLabel("Library address").fill("tester/slow-share");
+  await page.getByRole("button", { name: "Follow" }).click();
+  await expect(page.getByText("1 tracks")).toBeVisible();
+
+  raw.delayMs = 2500; // each part takes a while
+  await page.getByRole("button", { name: "Download Slow Song" }).click();
+  await expect(page.getByRole("button", { name: "Downloading Slow Song" })).toBeVisible();
+
+  await page.getByRole("link", { name: "Library", exact: true }).click();
+  await page.waitForURL("**/#/library");
+  await page.getByRole("link", { name: "Explore", exact: true }).click();
+  await page.waitForURL("**/#/explore");
+  await page.getByRole("link", { name: "tester/slow-share" }).click();
+  await expect(page.getByRole("button", { name: "Downloading Slow Song" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "Saved on this device" })).toBeVisible({ timeout: 20_000 });
+});

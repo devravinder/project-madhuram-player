@@ -93,3 +93,4 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 - [x] Less side padding on phones (16px instead of 32px)
 - [x] Split files of public libraries play part by part through the service worker (Range requests, seeking); e2e tests block service workers so they never reach GitHub
 - [x] Screen stays on while sync, upload or download runs (Screen Wake Lock; taken again when the app is back)
+- [x] Explore downloads keep their spinner and progress after leaving the page and coming back

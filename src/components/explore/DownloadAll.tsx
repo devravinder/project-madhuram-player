@@ -1,51 +1,37 @@
 import { Button } from "@/components/Elements";
+import { useDownloads } from "@/hooks/useDownloads";
 import { useSavedHashes } from "@/hooks/useSavedHashes";
-import { downloadCopy } from "@/services/public/remote";
-import { holdScreen } from "@/services/wakeLock";
+import {
+  downloadAll,
+  libraryKey,
+  stopDownloadAll,
+} from "@/services/public/downloads";
 import type { Song } from "@/types/music";
 import { Download } from "lucide-react";
-import { useRef, useState } from "react";
 import { toast } from "sonner";
 
-// Saves every track not yet on this device, one after another.
+// Saves every track not yet on this device, one after another. It carries
+// on when the page is left, and shows its progress again on return.
 export default function DownloadAll({ songs }: { songs: Song[] }) {
   const saved = useSavedHashes();
-  const [progress, setProgress] = useState<{ done: number; total: number }>();
-  const stop = useRef(false);
+  const key = songs[0] ? libraryKey(songs[0]) : "";
+  const progress = useDownloads().batches.get(key);
 
   const missing = songs.filter(
     (song) => !song.sha256 || !saved.has(song.sha256),
   );
 
   const run = async () => {
-    stop.current = false;
-    const releaseScreen = holdScreen(); // the phone must not sleep midway
-    const queue = [...missing];
-    let done = 0;
-    let failed = 0;
-    setProgress({ done, total: queue.length });
-
-    for (const song of queue) {
-      if (stop.current) break;
-      try {
-        await downloadCopy(song);
-        done++;
-      } catch {
-        failed++;
-      }
-      setProgress({ done: done + failed, total: queue.length });
-    }
-
-    releaseScreen();
-    setProgress(undefined);
-    const failures = failed > 0 ? `, ${failed} failed` : "";
-    toast(`Saved ${done} of ${queue.length}${failures}`);
+    const result = await downloadAll(key, missing);
+    if (!result) return;
+    const failures = result.failed > 0 ? `, ${result.failed} failed` : "";
+    toast(`Saved ${result.saved} of ${result.total}${failures}`);
   };
 
   if (progress) {
     return (
       <Button.Secondary
-        onClick={() => (stop.current = true)}
+        onClick={() => stopDownloadAll(key)}
         className="whitespace-nowrap"
       >
         Stop ({progress.done}/{progress.total})
@@ -55,7 +41,7 @@ export default function DownloadAll({ songs }: { songs: Song[] }) {
 
   return (
     <Button.Secondary
-      onClick={run}
+      onClick={() => void run()}
       disabled={missing.length === 0}
       className="whitespace-nowrap disabled:opacity-60"
     >

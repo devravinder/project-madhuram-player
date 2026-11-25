@@ -97,9 +97,10 @@ export async function signInWithFake(page: Page) {
 // raw.githubusercontent.com is answered from the fake, the way GitHub serves
 // public files. Media elements fetch through the browser, so this is a route.
 export async function routeRawToFake(context: BrowserContext, page: Page) {
-  const state = { offline: false, missing: [] as string[] };
+  const state = { offline: false, missing: [] as string[], delayMs: 0 };
   await context.route("https://raw.githubusercontent.com/**", async (route) => {
     if (state.offline) return route.abort("internetdisconnected");
+    if (state.delayMs > 0) await new Promise((r) => setTimeout(r, state.delayMs));
     const [, , repo, , ...rest] = new URL(route.request().url()).pathname.split("/");
     const path = decodeURIComponent(rest.join("/"));
     if (state.missing.some((part) => path.includes(part))) {
