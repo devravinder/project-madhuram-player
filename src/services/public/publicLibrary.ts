@@ -8,6 +8,7 @@ import {
   type PartRef,
 } from "@/services/github/indexTypes";
 import { HttpError } from "@/services/httpError";
+import type { StreamPart } from "@/services/stream/streamPlan";
 
 const RAW = "https://raw.githubusercontent.com";
 
@@ -139,6 +140,11 @@ export class PublicLibrary {
   // A file kept as one part can be played straight from its URL.
   streamUrl(file: { parts: PartRef[] } | undefined) {
     return file && file.parts.length === 1 ? this.partUrl(file.parts[0]) : undefined;
+  }
+
+  // Every part's URL and size, in order, for playing part by part.
+  async publicParts(file: { parts: PartRef[] }): Promise<StreamPart[]> {
+    return [...file.parts].sort((a, b) => a.n - b.n).map((part) => ({ url: this.partUrl(part), bytes: part.bytes }));
   }
 
   readPart = async (part: PartRef): Promise<Blob> => {

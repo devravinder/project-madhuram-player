@@ -15,6 +15,9 @@ export default defineConfig({
     viewport: { width: 700, height: 900 },
     launchOptions: { args: ["--autoplay-policy=no-user-gesture-required"] },
     trace: "retain-on-failure",
+    // Requests a service worker makes are not seen by page routing, so they
+    // could reach real GitHub. Streaming is covered by unit tests instead.
+    serviceWorkers: "block",
   },
   webServer: {
     command: `pnpm exec vite --port ${PORT} --strictPort`,

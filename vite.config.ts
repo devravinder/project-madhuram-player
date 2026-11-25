@@ -8,6 +8,10 @@ import { VitePWA, type VitePWAOptions } from "vite-plugin-pwa";
 const pwaOptions: Partial<VitePWAOptions> = {
   registerType: "prompt",
   injectRegister: false,
+  // Our own worker, so it can also stream split files (src/sw.ts).
+  strategies: "injectManifest",
+  srcDir: "src",
+  filename: "sw.ts",
 
   pwaAssets: {
     disabled: false,
@@ -23,20 +27,14 @@ const pwaOptions: Partial<VitePWAOptions> = {
     display: "standalone",
   },
 
-  workbox: {
+  injectManifest: {
     globPatterns: ["**/*.{js,css,html,svg,png,ico}"],
     // Dev tools (over 1 MB) load only when opened, not on every install.
     globIgnores: ["**/eruda*"],
-    cleanupOutdatedCaches: true,
-    clientsClaim: true,
-    // navigateFallback: 'index.html',
-    navigateFallback: null, // Important for subdomain
-    // navigateFallbackDenylist: [/^\/src/],
   },
 
   devOptions: {
     enabled: true,
-    navigateFallback: "index.html",
     suppressWarnings: true,
     type: "module",
   },

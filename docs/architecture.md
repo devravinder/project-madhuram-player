@@ -165,8 +165,14 @@ One media element plays every track, audio or video, so the queue, progress and 
   Range requests. Nothing is stored, so it is not playable offline until downloaded.
 - **Missing file:** the index is refetched on open, so removed tracks drop off the list.
   A track still shown whose file returns 404 shows "File not found, unable to play".
-- **Public, split:** all parts are downloaded, joined, then played. Streaming split files
-  needs fragmented MP4 and is a later phase.
+- **Public, split:** played part by part through the service worker (`src/sw.ts`). The
+  player gets a `__stream?d=...` link that lists the parts' raw URLs and sizes. For each
+  Range request the worker fetches only that piece of the part holding it, and answers
+  206, so playing and seeking fetch only what is heard. Any format the browser plays
+  works; nothing changes at upload. The whole-file hash is checked only on download.
+  Until the worker controls the page (the first visit), split files are downloaded first.
+- **Private libraries:** downloaded with the token, then played. Streaming them would need
+  the token in the worker and is not done yet.
 - **Download:** saves a local copy. When signed in, the copy is also uploaded to the user's
   repo as a new file.
 

@@ -9,6 +9,7 @@ import { pullTrack } from "@/services/sync/engine";
 import { getId } from "@/services/util";
 import type { Song } from "@/types/music";
 import { OwnLibrary } from "./ownLibrary";
+import { canStream, streamLink } from "@/services/stream/streamClient";
 import { PublicLibrary, TrackFileMissingError } from "./publicLibrary";
 
 // A remote track shaped like a local one, so lists and the player treat both alike.
@@ -63,8 +64,8 @@ const libraryOf = (song: Song) => {
   return readerFor(song.remote.owner, song.remote.repo);
 };
 
-// One-part files play straight from their URL; split files, and files of a
-// private library, are downloaded first.
+// One-part files play straight from their URL, and split files of a public
+// library part by part; files of a private library are downloaded first.
 export async function resolveRemote(
   song: Song,
   onDownloadStart?: () => void,
@@ -81,6 +82,18 @@ export async function resolveRemote(
         ? await library.readPart(manifest.cover.parts[0]).catch(() => undefined)
         : undefined;
     return { mode: "stream", url, coverUrl, cover };
+  }
+
+  // A split file of a public library plays part by part through the
+  // service worker, so only what is played is fetched.
+  const parts = await library.publicParts(manifest.media);
+  if (parts && (await canStream())) {
+    const mime = manifest.media.mime || song.mime || "application/octet-stream";
+    return {
+      mode: "stream",
+      url: streamLink({ mime, size: manifest.media.bytes, parts }),
+      coverUrl,
+    };
   }
 
   onDownloadStart?.();

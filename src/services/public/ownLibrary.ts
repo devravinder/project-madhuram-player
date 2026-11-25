@@ -8,6 +8,7 @@ import {
 } from "@/services/github/indexTypes";
 import { LibraryRepo } from "@/services/github/library";
 import { HttpError } from "@/services/httpError";
+import type { StreamPart } from "@/services/stream/streamPlan";
 import { PublicLibraryError, rawUrl, TrackFileMissingError } from "./publicLibrary";
 
 // One of the signed-in user's own libraries, read with the token so private
@@ -67,6 +68,15 @@ export class OwnLibrary {
     if (!file || file.parts.length !== 1) return undefined;
     const { isPrivate } = await this.info();
     return isPrivate ? undefined : rawUrl(this.owner, file.parts[0].repo, file.parts[0].path);
+  }
+
+  // Part URLs for playing part by part; none for a private library, whose
+  // files need the token and are downloaded instead.
+  async publicParts(file: { parts: PartRef[] }): Promise<StreamPart[] | undefined> {
+    if ((await this.info()).isPrivate) return undefined;
+    return [...file.parts]
+      .sort((a, b) => a.n - b.n)
+      .map((part) => ({ url: rawUrl(this.owner, part.repo, part.path), bytes: part.bytes }));
   }
 
   readPart = async (part: PartRef): Promise<Blob> => {

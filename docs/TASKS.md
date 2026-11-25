@@ -91,3 +91,4 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 - [x] Rename a library (a display name in its index; the repo name and links stay)
 - [x] Library actions only in Explore (⋮ menu, + to create, two-row cards); shorter messages; storage labels fit on phones; new Import icon
 - [x] Less side padding on phones (16px instead of 32px)
+- [x] Split files of public libraries play part by part through the service worker (Range requests, seeking); e2e tests block service workers so they never reach GitHub
