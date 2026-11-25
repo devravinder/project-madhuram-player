@@ -20,6 +20,7 @@ installed like an app. It works offline, with no account and no server.
    - Libraries: keep several (`project-music-files`, `-2`, ...). Make one public and use
      "Copy link" to share it; the others stay private.
    - Sync brings in songs from your other devices; Download brings back removed ones.
+   - New device: Explore lists My libraries, to play or pick songs without fetching all.
    - Playlists sync by themselves to a private home repo. Removing the token keeps your music.
 
 ## For developers

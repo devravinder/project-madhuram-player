@@ -8,8 +8,9 @@ import { uploadTrack } from "@/services/sync/upload";
 import { FakeGithub } from "@/testing/fakeGithub";
 import { makeFile, randomBytes } from "@/testing/files";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { TrackFileMissingError } from "./publicLibrary";
-import { downloadCopy, findLocalCopy, remoteSongs, resolveRemote, toRemoteSong } from "./remote";
+import { PublicLibraryError, TrackFileMissingError } from "./publicLibrary";
+import { downloadCopy, findLocalCopy, loadRemoteSongs, remoteSongs, resolveRemote, toRemoteSong } from "./remote";
+import { authStore } from "@/services/github/authStore";
 
 const NAME = "project-music-files";
 const noSleep = async () => {};
@@ -36,7 +37,10 @@ beforeEach(async () => {
   fake.repos.get(NAME)!.private = false;
 });
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 const remoteOf = async (id: string) => {
   const { index } = await library.read();
@@ -105,5 +109,51 @@ describe("remote tracks", () => {
 
   it("gives each remote track an id that cannot clash with a local one", async () => {
     expect((await remoteOf("small")).id).toBe(`${fake.login}/${NAME}:small`);
+  });
+});
+
+describe("own private library", () => {
+  beforeEach(() => {
+    fake.repos.get(NAME)!.private = true;
+  });
+
+  const signIn = () =>
+    vi.spyOn(authStore, "getSnapshot").mockReturnValue({
+      status: "signed-in",
+      token: fake.token,
+      user: { login: fake.login, avatarUrl: "" },
+    });
+
+  it("stays closed to everyone else", async () => {
+    await expect(loadRemoteSongs(fake.login, NAME)).rejects.toBeInstanceOf(PublicLibraryError);
+  });
+
+  it("lists the owner's tracks with the token", async () => {
+    signIn();
+    const songs = await loadRemoteSongs(fake.login.toUpperCase(), NAME);
+    expect(songs.map((s) => s.title).sort()).toEqual(["Song large", "Song small"]);
+  });
+
+  it("downloads a one-part file and its cover instead of streaming", async () => {
+    signIn();
+    const playable = await resolveRemote(await remoteOf("small"));
+
+    expect(playable.mode).toBe("download");
+    if (playable.mode === "download") {
+      expect(new Uint8Array(await playable.file.arrayBuffer())).toEqual(randomBytes(60));
+    }
+    expect(playable.coverUrl).toBeUndefined();
+    expect(new Uint8Array(await playable.cover!.arrayBuffer())).toEqual(randomBytes(20, 4));
+  });
+
+  it("restores the owner's track as itself, already synced", async () => {
+    signIn();
+    await db.syncState.clear();
+
+    const id = await downloadCopy(await remoteOf("large"));
+
+    expect(id).toBe("large");
+    expect(await deviceProvider.getTrack("large")).toMatchObject({ title: "Song large", bytes: 250 });
+    expect(await db.syncState.get("large")).toMatchObject({ library: NAME });
   });
 });

@@ -16,7 +16,10 @@ import {
   setDefaultLibrary as saveDefaultLibrary,
   type HomeInfo,
 } from "@/services/github/session";
-import { isLibraryPrivate, setLibraryPrivate } from "@/services/github/visibility";
+import {
+  isLibraryPrivate,
+  setLibraryPrivate,
+} from "@/services/github/visibility";
 import { HttpError } from "@/services/httpError";
 import { isValidRepoName } from "@/services/settingsStore";
 import { deviceProvider } from "@/services/storage/deviceProvider";
@@ -175,7 +178,10 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         stoppedBy !== "auth";
       if (!resumes) return;
       setResumeAt(Date.now() + waitMs);
-      resumeTimer.current = setTimeout(() => void syncRef.current?.(job), waitMs + 250);
+      resumeTimer.current = setTimeout(
+        () => void syncRef.current?.(job),
+        waitMs + 250,
+      );
     },
     [],
   );
@@ -205,31 +211,51 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
   const sessionOptions = useCallback(() => {
     if (!token || !user) throw new Error("Sign in first.");
-    return { api: new GithubApi(token), login: user.login, config: LIBRARY_CONFIG };
+    return {
+      api: new GithubApi(token),
+      login: user.login,
+      config: LIBRARY_CONFIG,
+    };
   }, [token, user]);
 
   // Opens the home repo and every library listed in it, creating the first
   // ones for a new account. A library whose name turns out to be taken is
-  // left out and reported, so the user can pick another name.
+  // left out and reported, so the user can pick another name. Callers that
+  // arrive while it is opening share the same attempt, so a new account's
+  // repos are never created twice at once.
+  const opening = useRef<{ key: string; promise: Promise<Session> }>(undefined);
   const openSession = useCallback(async (): Promise<Session> => {
     if (!token || !user) throw new Error("Sign in first.");
     const key = `${token}:${user.login}`;
     if (session.current?.key === key) return session.current;
+    if (opening.current?.key === key) return opening.current.promise;
 
-    const options = sessionOptions();
-    const home = await openHome(options, config.homeRepoName, config.libraryRepoName);
-    const info = homeInfo((await home.read()).index);
-    const opened: LibraryRepo[] = [];
-    for (const name of info.libraries) {
-      try {
-        opened.push(await openLibrary(options, name));
-      } catch (problem) {
-        if (!(problem instanceof LibraryNameTakenError)) throw problem;
-        setNameTaken(problem.repo);
+    const promise = (async () => {
+      const options = sessionOptions();
+      const home = await openHome(
+        options,
+        config.homeRepoName,
+        config.libraryRepoName,
+      );
+      const info = homeInfo((await home.read()).index);
+      const opened: LibraryRepo[] = [];
+      for (const name of info.libraries) {
+        try {
+          opened.push(await openLibrary(options, name));
+        } catch (problem) {
+          if (!(problem instanceof LibraryNameTakenError)) throw problem;
+          setNameTaken(problem.repo);
+        }
       }
+      session.current = { key, home, info, libraries: opened };
+      return session.current;
+    })();
+    opening.current = { key, promise };
+    try {
+      return await promise;
+    } finally {
+      if (opening.current?.promise === promise) opening.current = undefined;
     }
-    session.current = { key, home, info, libraries: opened };
-    return session.current;
   }, [token, user, sessionOptions]);
 
   const refreshLibraries = useCallback(async (current: Session) => {
@@ -291,7 +317,12 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         // connecting or syncing playlists; they pause like queued steps do.
         const stop = stopReasonOf(problem);
         if (stop) {
-          const paused = { done: 0, failed: 0, stoppedBy: stop.reason, waitMs: stop.waitMs };
+          const paused = {
+            done: 0,
+            failed: 0,
+            stoppedBy: stop.reason,
+            waitMs: stop.waitMs,
+          };
           setLast({ at: Date.now(), queued: 0, ...paused });
           interrupted.current = isPause(stop.reason) ? job : undefined;
           scheduleResume(paused, job);
@@ -304,7 +335,14 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         setPhase("idle");
       }
     },
-    [signedIn, openSession, refreshLibraries, report, clearResume, scheduleResume],
+    [
+      signedIn,
+      openSession,
+      refreshLibraries,
+      report,
+      clearResume,
+      scheduleResume,
+    ],
   );
 
   useEffect(() => {
@@ -316,7 +354,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     [runJob],
   );
   const upload = useCallback(
-    (trackIds: string[], library: string) => runJob({ kind: "upload", trackIds, library }),
+    (trackIds: string[], library: string) =>
+      runJob({ kind: "upload", trackIds, library }),
     [runJob],
   );
   const resume = useCallback(
@@ -358,11 +397,19 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
   // Creates (or adopts) the repo, then lists it in the home repo.
   const addOrReplace = useCallback(
-    async (rawName: string, replacing?: string): Promise<string | undefined> => {
+    async (
+      rawName: string,
+      replacing?: string,
+    ): Promise<string | undefined> => {
       const name = rawName.trim();
-      if (!isValidRepoName(name)) return "Use letters, numbers, dots, dashes or underscores.";
-      if (name === config.homeRepoName) return "That name is used for your playlists.";
-      if (session.current?.info.libraries.includes(name) && name !== replacing) {
+      if (!isValidRepoName(name))
+        return "Use letters, numbers, dots, dashes or underscores.";
+      if (name === config.homeRepoName)
+        return "That name is used for your playlists.";
+      if (
+        session.current?.info.libraries.includes(name) &&
+        name !== replacing
+      ) {
         return "You already have this library.";
       }
       let failure: string | undefined;
@@ -371,7 +418,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           const library = await openLibrary(sessionOptions(), name);
           current.info = await saveLibrary(current.home, name, replacing);
           current.libraries = [
-            ...current.libraries.filter((l) => l.repo !== replacing && l.repo !== name),
+            ...current.libraries.filter(
+              (l) => l.repo !== replacing && l.repo !== name,
+            ),
             library,
           ];
           if (replacing) setNameTaken(undefined);
@@ -385,7 +434,10 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     [withSession, sessionOptions],
   );
 
-  const addLibrary = useCallback((name: string) => addOrReplace(name), [addOrReplace]);
+  const addLibrary = useCallback(
+    (name: string) => addOrReplace(name),
+    [addOrReplace],
+  );
   const replaceTakenLibrary = useCallback(
     (name: string) => addOrReplace(name, nameTaken),
     [addOrReplace, nameTaken],
@@ -418,7 +470,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   // offline or failed deletes are finished by the next full sync.
   const deleteEverywhere = useCallback(
     async (trackId: string) => {
-      const current = signedIn ? await openSession().catch(() => undefined) : undefined;
+      const current = signedIn
+        ? await openSession().catch(() => undefined)
+        : undefined;
       return deleteTrackEverywhere(trackId, current?.libraries);
     },
     [signedIn, openSession],
@@ -481,7 +535,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!signedIn || last?.stoppedBy !== "offline") return;
     const onVisible = () => {
-      if (document.visibilityState === "visible" && navigator.onLine) void resume();
+      if (document.visibilityState === "visible" && navigator.onLine)
+        void resume();
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);

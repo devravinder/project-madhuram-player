@@ -1,11 +1,15 @@
 import db from "@/services/db";
+import { GithubApi } from "@/services/github/api";
+import { authStore } from "@/services/github/authStore";
 import type { LibraryIndex, TrackEntry } from "@/services/github/indexTypes";
 import { deviceProvider } from "@/services/storage/deviceProvider";
 import type { TrackMeta } from "@/services/storage/types";
 import { fetchTrackFiles } from "@/services/sync/download";
+import { pullTrack } from "@/services/sync/engine";
 import { getId } from "@/services/util";
 import type { Song } from "@/types/music";
-import { PublicLibrary } from "./publicLibrary";
+import { OwnLibrary } from "./ownLibrary";
+import { PublicLibrary, TrackFileMissingError } from "./publicLibrary";
 
 // A remote track shaped like a local one, so lists and the player treat both alike.
 export function toRemoteSong(owner: string, repo: string, entry: TrackEntry): Song {
@@ -21,7 +25,7 @@ export function toRemoteSong(owner: string, repo: string, entry: TrackEntry): So
     sha256: entry.sha256,
     addedAt: new Date(entry.addedAt),
     mediaId: "",
-    remote: { owner, repo, manifest: entry.manifest },
+    remote: { owner, repo, manifest: entry.manifest, trackId: entry.id },
   };
 }
 
@@ -29,41 +33,71 @@ export const remoteSongs = (owner: string, repo: string, index: LibraryIndex) =>
   index.tracks.filter((t) => !t.deleted).map((t) => toRemoteSong(owner, repo, t));
 
 export type PlayableRemote =
-  | { mode: "stream"; url: string; coverUrl?: string }
-  | { mode: "download"; file: File; coverUrl?: string };
+  | { mode: "stream"; url: string; coverUrl?: string; cover?: Blob }
+  | { mode: "download"; file: File; coverUrl?: string; cover?: Blob };
+
+type Reader = PublicLibrary | OwnLibrary;
+
+// The signed-in user's own libraries are read with the token, so private
+// ones open too; everyone else's go through the public URLs.
+function readerFor(owner: string, repo: string): Reader {
+  const { status, token, user } = authStore.getSnapshot();
+  if (status === "signed-in" && token && user && user.login.toLowerCase() === owner.toLowerCase()) {
+    return new OwnLibrary(new GithubApi(token), user.login, repo);
+  }
+  return new PublicLibrary({ owner, repo });
+}
+
+export const loadRemoteSongs = async (owner: string, repo: string) =>
+  remoteSongs(owner, repo, await readerFor(owner, repo).loadIndex());
 
 const libraryOf = (song: Song) => {
   if (!song.remote) throw new Error("Not a remote track");
-  return new PublicLibrary({ owner: song.remote.owner, repo: song.remote.repo });
+  return readerFor(song.remote.owner, song.remote.repo);
 };
 
-// One-part files play straight from their URL; split files are downloaded first.
+// One-part files play straight from their URL; split files, and files of a
+// private library, are downloaded first.
 export async function resolveRemote(
   song: Song,
   onDownloadStart?: () => void,
 ): Promise<PlayableRemote> {
   const library = libraryOf(song);
   const manifest = await library.loadManifest(song.remote!.manifest);
-  const coverUrl = library.streamUrl(manifest.cover);
+  const coverUrl = await library.streamUrl(manifest.cover);
 
-  const url = library.streamUrl(manifest.media);
-  if (url) return { mode: "stream", url, coverUrl };
+  const url = await library.streamUrl(manifest.media);
+  if (url) {
+    // A private cover has no URL; it is small, so fetch it.
+    const cover =
+      !coverUrl && manifest.cover?.parts.length === 1
+        ? await library.readPart(manifest.cover.parts[0]).catch(() => undefined)
+        : undefined;
+    return { mode: "stream", url, coverUrl, cover };
+  }
 
   onDownloadStart?.();
   const files = await fetchTrackFiles(manifest, library.readPart);
-  return { mode: "download", file: files.media, coverUrl };
+  return { mode: "download", file: files.media, coverUrl, cover: coverUrl ? undefined : files.cover };
 }
 
 // A saved copy is the only form that plays offline.
 export const findLocalCopy = (sha256: string | undefined) =>
   sha256 ? db.songs.filter((song) => song.sha256 === sha256).first() : undefined;
 
-// Saves a new, independent local copy of a remote track.
+// Saves a remote track on this device. One of the user's own tracks comes
+// back as itself, already synced; someone else's becomes a new, independent copy.
 export async function downloadCopy(
   song: Song,
   onPart?: () => void,
 ): Promise<string> {
   const library = libraryOf(song);
+  if (library instanceof OwnLibrary && song.remote?.trackId) {
+    const restored = await pullTrack(await library.library(), song.remote.trackId, deviceProvider);
+    if (!restored) throw new TrackFileMissingError();
+    return song.remote.trackId;
+  }
+
   const manifest = await library.loadManifest(song.remote!.manifest);
   const files = await fetchTrackFiles(manifest, library.readPart, onPart);
 

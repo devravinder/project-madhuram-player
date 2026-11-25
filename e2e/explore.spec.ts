@@ -60,9 +60,43 @@ test("tells the listener when an address is not a public library", async ({ page
 
   await page.getByLabel("Library address").fill("not an address");
   await page.getByRole("button", { name: "Follow" }).click();
-  await expect(page.getByText(/Enter an address like owner\/repo/)).toBeVisible();
+  await expect(page.getByText(/Enter owner\/repo, a GitHub link or a share link/)).toBeVisible();
 
   await page.getByLabel("Library address").fill("someone/missing-library");
   await page.getByRole("button", { name: "Follow" }).click();
   await expect(page.getByText(/No music library found at someone\/missing-library/)).toBeVisible();
+});
+
+test("a new device finds the user's private library in Explore and restores songs as themselves", async ({ page }) => {
+  await page.goto("/");
+  await seedPublicLibrary(page, "project-music-files", [
+    { id: "mine1", title: "Mine One", seconds: 8 },
+    { id: "mine2", title: "Mine Two", seconds: 8 },
+  ]);
+  await page.evaluate(() => ((window as any).__fake.repos.get("project-music-files").private = true));
+  await page.getByLabel("GitHub access token").fill("good-token");
+  await page.getByRole("button", { name: "Sign in" }).click();
+
+  const prompt = page.locator("[data-sonner-toast]", { hasText: "You have 2 songs on GitHub" });
+  await expect(prompt).toBeVisible({ timeout: 15_000 });
+  await prompt.getByRole("button", { name: "Browse" }).click();
+
+  await expect(page.getByRole("heading", { name: "My libraries" })).toBeVisible();
+  await page.getByRole("link", { name: /project-music-files/ }).click();
+  await expect(page.getByText("2 tracks")).toBeVisible({ timeout: 15_000 });
+
+  // Private: fetched with the token, then played.
+  await songRow(page, "Mine One").click();
+  await expectPlaying(page, /^blob:/);
+
+  await page.getByRole("button", { name: "Download Mine Two" }).click();
+  await expect(songRow(page, "Mine Two").getByRole("img", { name: "Saved on this device" })).toBeVisible();
+  const saved = await page.evaluate(async () => {
+    const { default: db } = await import(/* @vite-ignore */ "/src/services/db.ts");
+    return {
+      songs: (await db.songs.toArray()).map((s: any) => s.id),
+      synced: (await db.syncState.toArray()).map((r: any) => r.trackId),
+    };
+  });
+  expect(saved).toEqual({ songs: ["mine2"], synced: ["mine2"] });
 });

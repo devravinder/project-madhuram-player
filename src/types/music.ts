@@ -14,8 +14,8 @@ export interface Song {
   sha256?: string; // set when the track is synced
   updatedAt?: Date;
   coverImageId?: string; // cover art, or a poster frame for video
-  // Set for a track that lives in a public library and is not saved here.
-  remote?: { owner: string; repo: string; manifest: string };
+  // Set for a track that lives in a GitHub library and is not saved here.
+  remote?: { owner: string; repo: string; manifest: string; trackId?: string };
   coverUrl?: string; // cover shown straight from its URL, for remote tracks
 }
 
@@ -50,11 +50,7 @@ export interface SleepTimer {
 }
 
 export type SortOption =
-  | "name-asc"
-  | "name-desc"
-  | "date-asc"
-  | "date-desc"
-  | "none";
+  "name-asc" | "name-desc" | "date-asc" | "date-desc" | "none";
 
 export type AppFile = {
   id: string;

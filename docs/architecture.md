@@ -26,6 +26,11 @@ flowchart LR
 The UI never calls GitHub directly. Providers hide where a track lives, so a new source
 (for example OAuth login later) changes only a provider.
 
+In Explore, the signed-in user's own libraries (My libraries) are read with the token
+(`OwnLibrary`), so private ones open too. Their one-part files stream from raw URLs only
+when the library is public; otherwise they are downloaded first. Downloading one of your
+own songs restores it under its own id with a sync record, so it is never uploaded again.
+
 ## Repositories and index
 
 Each signed-in user has one private **home** repo and one or more **library** repos.

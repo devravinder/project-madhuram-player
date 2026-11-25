@@ -1,6 +1,9 @@
 import { getFile } from "@/services/filesService";
 import { findLocalCopy, resolveRemote } from "@/services/public/remote";
-import { PublicLibraryError, TrackFileMissingError } from "@/services/public/publicLibrary";
+import {
+  PublicLibraryError,
+  TrackFileMissingError,
+} from "@/services/public/publicLibrary";
 import { IntegrityError } from "@/services/sync/download";
 import type { Song } from "@/types/music";
 
@@ -44,16 +47,23 @@ export async function resolveSource(
   if (local) return local;
 
   const playable = await resolveRemote(song, hooks.onDownloadStart);
+  // A private library's cover comes as a file, not a URL.
+  const coverUrl = playable.cover
+    ? URL.createObjectURL(playable.cover)
+    : playable.coverUrl;
+  const coverUrls = playable.cover && coverUrl ? [coverUrl] : [];
+  const coverType = playable.cover?.type;
   if (playable.mode === "stream") {
-    return { src: playable.url, coverUrl: playable.coverUrl, objectUrls: [] };
+    return { src: playable.url, coverUrl, coverType, objectUrls: coverUrls };
   }
   const src = URL.createObjectURL(playable.file);
-  return { src, coverUrl: playable.coverUrl, objectUrls: [src] };
+  return { src, coverUrl, coverType, objectUrls: [src, ...coverUrls] };
 }
 
 export function playbackErrorMessage(error: unknown): string {
   if (error instanceof TrackFileMissingError) return error.message;
   if (error instanceof PublicLibraryError) return error.message;
-  if (error instanceof IntegrityError) return "The download was incomplete. Try again.";
+  if (error instanceof IntegrityError)
+    return "The download was incomplete. Try again.";
   return "Unable to play this track.";
 }

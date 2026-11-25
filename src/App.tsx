@@ -1,6 +1,7 @@
 import { Toaster } from "sonner";
 import { QueryClientProvider } from "@tanstack/react-query";
 import LoginPage from "@/components/auth/LoginPage";
+import NewDevicePrompt from "@/components/sync/NewDevicePrompt";
 import { PlayerProvider } from "@/context/PlayerContext";
 import { PlaylistProvider } from "@/context/PlaylistContext";
 import { SyncProvider } from "@/context/SyncContext";
@@ -51,6 +52,7 @@ export default function App() {
     <ContextProviders>
       <AuthGate>
         <AppRouter />
+        <NewDevicePrompt />
       </AuthGate>
       <PWABadge />
     </ContextProviders>

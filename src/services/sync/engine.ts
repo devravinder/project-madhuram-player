@@ -22,7 +22,8 @@ import { uploadTrack, type UploadOptions } from "./upload";
 // Download: only brings tracks in. New tracks go up only through uploadTracks.
 export type SyncMode = "both" | "download";
 
-const allows = (mode: SyncMode, op: OutboxOp) => mode === "both" || op === "pull";
+const allows = (mode: SyncMode, op: OutboxOp) =>
+  mode === "both" || op === "pull";
 
 export type SyncContext = {
   libraries: LibraryRepo[]; // every library of the user, opened
@@ -48,7 +49,10 @@ export async function queueSync(
   ctx: SyncContext,
   mode: SyncMode = "both",
 ): Promise<number> {
-  const [local, records] = await Promise.all([ctx.device.listTracks(), db.syncState.toArray()]);
+  const [local, records] = await Promise.all([
+    ctx.device.listTracks(),
+    db.syncState.toArray(),
+  ]);
   let queued = 0;
 
   for (const library of ctx.libraries) {
@@ -79,16 +83,31 @@ async function push(ctx: SyncContext, item: OutboxItem) {
     throw error;
   }
 
-  const entry = await uploadTrack(libraryOf(ctx, item.library), meta, files, ctx.upload);
+  const entry = await uploadTrack(
+    libraryOf(ctx, item.library),
+    meta,
+    files,
+    ctx.upload,
+  );
   await db.songs.update(item.trackId, { sha256: entry.sha256 });
-  await db.syncState.put({ trackId: item.trackId, sha256: entry.sha256, library: item.library });
+  await db.syncState.put({
+    trackId: item.trackId,
+    sha256: entry.sha256,
+    library: item.library,
+  });
 }
 
-async function pull(ctx: SyncContext, item: OutboxItem) {
-  const library = libraryOf(ctx, item.library);
+// Brings one of the user's tracks to this device under its own id and
+// records it as synced, so it is never uploaded again as a new song.
+// False when the track is no longer in the library.
+export async function pullTrack(
+  library: LibraryRepo,
+  trackId: string,
+  device: StorageProvider,
+): Promise<boolean> {
   const { index, head } = await library.read();
-  const entry = index.tracks.find((t) => t.id === item.trackId && !t.deleted);
-  if (!entry) return; // removed remotely while waiting
+  const entry = index.tracks.find((t) => t.id === trackId && !t.deleted);
+  if (!entry) return false;
 
   const text = await library.readText(entry.manifest, head);
   if (!text) throw new Error(`Manifest missing for ${entry.title}`);
@@ -97,8 +116,17 @@ async function pull(ctx: SyncContext, item: OutboxItem) {
   );
 
   const { manifest: _manifest, deleted: _deleted, ...meta } = entry;
-  await ctx.device.writeTrack(meta, files);
-  await db.syncState.put({ trackId: item.trackId, sha256: entry.sha256!, library: library.repo });
+  await device.writeTrack(meta, files);
+  await db.syncState.put({
+    trackId,
+    sha256: entry.sha256!,
+    library: library.repo,
+  });
+  return true;
+}
+
+async function pull(ctx: SyncContext, item: OutboxItem) {
+  await pullTrack(libraryOf(ctx, item.library), item.trackId, ctx.device);
 }
 
 async function deleteRemote(ctx: SyncContext, item: OutboxItem) {
@@ -142,7 +170,13 @@ export async function syncNow(
     // Offline or limited while reading a library: report it, do not throw.
     const stop = stopReasonOf(error);
     if (!stop) throw error;
-    return { done: 0, failed: 0, queued: 0, stoppedBy: stop.reason, waitMs: stop.waitMs };
+    return {
+      done: 0,
+      failed: 0,
+      queued: 0,
+      stoppedBy: stop.reason,
+      waitMs: stop.waitMs,
+    };
   }
 
   const result = await outbox.run(createHandler(ctx), {
