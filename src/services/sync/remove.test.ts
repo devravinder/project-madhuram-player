@@ -11,21 +11,37 @@ import type { TrackMeta } from "@/services/storage/types";
 import { FakeGithub } from "@/testing/fakeGithub";
 import { makeFile, randomBytes } from "@/testing/files";
 import { beforeEach, describe, expect, it } from "vitest";
-import { deleteEverywhere, isBackedUp, removeFromDeviceOnly } from "./deleteTrack";
-import { syncNow, uploadTracks, type SyncContext, type SyncMode } from "./engine";
+import {
+  deleteEverywhere,
+  isBackedUp,
+  removeFromDeviceOnly,
+} from "./deleteTrack";
+import {
+  syncNow,
+  uploadTracks,
+  type SyncContext,
+  type SyncMode,
+} from "./engine";
 import { removeRemoteTrack } from "./remove";
 import { uploadTrack } from "./upload";
 import { createPlaylist, getPlaylists } from "@/services/playlistService";
 
-const NAME = "project-music-files";
+const NAME = "music-library";
 const PART = 100;
 const REPO_LIMIT = 250;
 const noSleep = async () => {};
 
 const meta = (id: string): TrackMeta => ({
-  id, kind: "audio", title: `Song ${id}`, artist: "", album: "", duration: 1,
-  mime: "audio/mpeg", bytes: 0,
-  addedAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
+  id,
+  kind: "audio",
+  title: `Song ${id}`,
+  artist: "",
+  album: "",
+  duration: 1,
+  mime: "audio/mpeg",
+  bytes: 0,
+  addedAt: "2026-01-01T00:00:00.000Z",
+  updatedAt: "2026-01-01T00:00:00.000Z",
 });
 
 let fake: FakeGithub;
@@ -36,11 +52,23 @@ let ctx: SyncContext;
 const index = () => parseIndex(fake.fileText(NAME, "index.json")!);
 const sync = (mode: SyncMode = "both") => syncNow(ctx, {}, mode);
 const uploadAll = async () =>
-  uploadTracks(ctx, (await deviceProvider.listTracks()).map((t) => t.id), NAME);
+  uploadTracks(
+    ctx,
+    (await deviceProvider.listTracks()).map((t) => t.id),
+    NAME,
+  );
 const addLocal = (id: string, size: number, seed = 1) =>
-  deviceProvider.writeTrack(meta(id), { media: makeFile(`${id}.mp3`, randomBytes(size, seed)) });
+  deviceProvider.writeTrack(meta(id), {
+    media: makeFile(`${id}.mp3`, randomBytes(size, seed)),
+  });
 const wipeDevice = () =>
-  Promise.all([db.songs.clear(), db.files.clear(), db.syncState.clear(), db.outbox.clear(), db.playlists.clear()]);
+  Promise.all([
+    db.songs.clear(),
+    db.files.clear(),
+    db.syncState.clear(),
+    db.outbox.clear(),
+    db.playlists.clear(),
+  ]);
 const trackPaths = (repo: string, id: string) =>
   fake.paths(repo).filter((p) => p.includes(id));
 
@@ -53,17 +81,27 @@ beforeEach(async () => {
     ),
   });
   const api = new GithubApi(fake.token, (input, init) =>
-    offline ? Promise.reject(new TypeError("offline")) : fake.fetch(input, init),
+    offline
+      ? Promise.reject(new TypeError("offline"))
+      : fake.fetch(input, init),
   );
   library = new LibraryRepo(api, fake.login, NAME, "main", noSleep);
-  ctx = { libraries: [library], device: deviceProvider, upload: { sleep: noSleep } };
+  ctx = {
+    libraries: [library],
+    device: deviceProvider,
+    upload: { sleep: noSleep },
+  };
   await wipeDevice();
 });
 
 describe("removeRemoteTrack", () => {
   it("removes the manifest and parts, frees the space and leaves a tombstone", async () => {
-    await uploadTrack(library, meta("aa1"), { media: makeFile("a.bin", randomBytes(150, 1)) });
-    await uploadTrack(library, meta("bb2"), { media: makeFile("b.bin", randomBytes(50, 2)) });
+    await uploadTrack(library, meta("aa1"), {
+      media: makeFile("a.bin", randomBytes(150, 1)),
+    });
+    await uploadTrack(library, meta("bb2"), {
+      media: makeFile("b.bin", randomBytes(50, 2)),
+    });
     expect(index().repos[0].usedBytes).toBe(200);
 
     await removeRemoteTrack(library, "aa1");
@@ -75,11 +113,19 @@ describe("removeRemoteTrack", () => {
   });
 
   it("removes parts from overflow repos too and reopens a full repo", async () => {
-    await uploadTrack(library, meta("aa1"), { media: makeFile("a.bin", randomBytes(200, 1)) });
-    await uploadTrack(library, meta("bb2"), { media: makeFile("b.bin", randomBytes(300, 2)) }, { sleep: noSleep });
+    await uploadTrack(library, meta("aa1"), {
+      media: makeFile("a.bin", randomBytes(200, 1)),
+    });
+    await uploadTrack(
+      library,
+      meta("bb2"),
+      { media: makeFile("b.bin", randomBytes(300, 2)) },
+      { sleep: noSleep },
+    );
     // 300 bytes is more than one repo holds: it spans two overflow repos.
     const shards = [`${NAME}-part-1`, `${NAME}-part-2`];
-    for (const shard of shards) expect(trackPaths(shard, "bb2").length).toBeGreaterThan(0);
+    for (const shard of shards)
+      expect(trackPaths(shard, "bb2").length).toBeGreaterThan(0);
 
     await removeRemoteTrack(library, "bb2");
 
@@ -90,7 +136,9 @@ describe("removeRemoteTrack", () => {
   });
 
   it("is safe to run twice", async () => {
-    await uploadTrack(library, meta("aa1"), { media: makeFile("a.bin", randomBytes(50, 1)) });
+    await uploadTrack(library, meta("aa1"), {
+      media: makeFile("a.bin", randomBytes(50, 1)),
+    });
     await removeRemoteTrack(library, "aa1");
     const commits = fake.commitCount(NAME);
 
@@ -131,17 +179,25 @@ describe("deleting a backed-up song", () => {
     await addLocal("aa1", 50);
     await addLocal("bb2", 50, 2);
     await uploadAll();
-    await createPlaylist({ name: "Mix", description: "", songIds: ["aa1", "bb2"] });
+    await createPlaylist({
+      name: "Mix",
+      description: "",
+      songIds: ["aa1", "bb2"],
+    });
 
     await removeFromDeviceOnly("aa1");
 
     expect(await sync()).toMatchObject({ queued: 0 }); // no pull, no delete
     expect(await syncNow(ctx, {}, "both")).toMatchObject({ queued: 0 });
     expect(trackPaths(NAME, "aa1")).toHaveLength(2);
-    expect((await getPlaylists()).find((p) => p.name === "Mix")?.songIds).toEqual(["aa1", "bb2"]);
+    expect(
+      (await getPlaylists()).find((p) => p.name === "Mix")?.songIds,
+    ).toEqual(["aa1", "bb2"]);
 
     expect(await sync("download")).toMatchObject({ queued: 1, done: 1 });
-    expect((await deviceProvider.listTracks()).map((t) => t.id).sort()).toEqual(["aa1", "bb2"]);
+    expect((await deviceProvider.listTracks()).map((t) => t.id).sort()).toEqual(
+      ["aa1", "bb2"],
+    );
     expect((await db.syncState.get("aa1"))?.deviceRemoved).toBeFalsy();
   });
 });

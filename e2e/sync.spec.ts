@@ -1,6 +1,6 @@
 import { expect, importFiles, openSettings, signInWithFake, test, wavBuffer } from "./fixtures";
 
-const REPO = "project-music-files";
+const REPO = "music-library";
 
 const remoteTitles = (page: import("@playwright/test").Page) =>
   page.evaluate((repo) => {
@@ -159,7 +159,7 @@ test("carries on with unfinished sync steps when the app opens signed in", async
     const { default: db } = await import(/* @vite-ignore */ "/src/services/db.ts");
     const [song] = await db.songs.toArray();
     await db.outbox.add({
-      id: `push:${song.id}`, op: "push", trackId: song.id, library: "project-music-files", status: "running",
+      id: `push:${song.id}`, op: "push", trackId: song.id, library: "music-library", status: "running",
       attempts: 0, nextAttemptAt: 0, createdAt: Date.now(),
     });
   });
@@ -232,10 +232,10 @@ test("uploads into a chosen library and shares only that one", async ({ page, co
 
   // One song into each library.
   await page.getByText("Not backed up (2)").click();
-  await page.getByLabel("Library").selectOption(SHARED);
+  await page.getByLabel("Library", { exact: true }).selectOption(SHARED);
   await page.getByRole("button", { name: "Upload For Friends" }).click();
   await expect(page.getByText("Synced 1.")).toBeVisible({ timeout: 20_000 });
-  await page.getByLabel("Library").selectOption(REPO);
+  await page.getByLabel("Library", { exact: true }).selectOption(REPO);
   await page.getByRole("button", { name: "Upload Mine" }).click();
   await expect(page.getByText("Every song is backed up.")).toBeVisible({ timeout: 20_000 });
   const titlesIn = (repo: string) =>
@@ -256,7 +256,7 @@ test("uploads into a chosen library and shares only that one", async ({ page, co
     page.evaluate((r) => (window as any).__fake.repos.get(r).private, repo);
   expect(await isPrivate(SHARED)).toBe(false);
   expect(await isPrivate(REPO)).toBe(true);
-  expect(await isPrivate("project-music-home")).toBe(true);
+  expect(await isPrivate("music-library-home")).toBe(true);
   await expect(page.getByRole("button", { name: `Copy link to ${REPO}`, exact: true })).toHaveCount(0);
 
   await page.getByRole("button", { name: `Copy link to ${SHARED}` }).click();

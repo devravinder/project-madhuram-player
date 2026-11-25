@@ -12,7 +12,7 @@ import { PublicLibraryError, TrackFileMissingError } from "./publicLibrary";
 import { downloadCopy, findLocalCopy, loadRemoteSongs, remoteSongs, resolveRemote, toRemoteSong } from "./remote";
 import { authStore } from "@/services/github/authStore";
 
-const NAME = "project-music-files";
+const NAME = "music-library";
 const noSleep = async () => {};
 
 const meta = (id: string): TrackMeta => ({

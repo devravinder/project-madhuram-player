@@ -35,19 +35,19 @@ own songs restores it under its own id with a sync record, so it is never upload
 
 Each signed-in user has one private **home** repo and one or more **library** repos.
 
-- **Home** (`project-music-home`, always private): playlists, followed libraries, the list
+- **Home** (`music-library-home`, always private): playlists, followed libraries, the list
   of libraries and which one is the default for uploads. Personal, so it is never shared.
-- **Library** (default `project-music-files`, more as `project-music-files-2`, `-3`, ...):
+- **Library** (default `music-library`, more as `music-library-2`, `-3`, ...):
   songs only. Public or private as a whole. When it fills up, the app adds overflow repos
   `<library>-part-1`, `-part-2`, which take the library's visibility, so a listener can
   always reach every part of every song.
 
 ```text
-project-music-home/
+music-library-home/
 ├── index.json        # role "home": libraries, defaultLibrary, followed sources
 └── playlists.json    # playlists, merged per playlist by updatedAt
 
-project-music-files/
+music-library/
 ├── index.json        # role "library": config, repos, tracks, tombstones
 ├── manifests/<id>.json
 └── data/<id[0:2]>/<id>/{media|cover}.<n>
@@ -103,7 +103,7 @@ flowchart TD
 - A newer `schemaVersion` than the app knows opens read-only with an update prompt.
 - Overflow repos come from `index.repos`. If the index is missing one, the app finds
   `<library>-part-N` repos that carry the marker and adds them back.
-- Repo names are configurable. The defaults are `project-music-home` and `project-music-files`.
+- Repo names are configurable. The defaults are `music-library-home` and `music-library`.
 
 ## Size accounting
 

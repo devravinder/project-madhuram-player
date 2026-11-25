@@ -10,7 +10,7 @@ import {
 } from "./indexTypes";
 
 const config = { maxFileBytes: 50, maxRepoBytes: 800 };
-const NAME = "project-music-files";
+const NAME = "music-library";
 
 const setup = () => {
   const fake = new FakeGithub();
@@ -52,8 +52,16 @@ describe("findOrCreateLibrary", () => {
     const { fake, run } = setup();
     const index = createEmptyIndex(NAME, config);
     index.tracks.push({
-      id: "t1", kind: "audio", title: "Kept", artist: "", album: "", duration: 1,
-      mime: "audio/mpeg", bytes: 1, addedAt: index.updatedAt, updatedAt: index.updatedAt,
+      id: "t1",
+      kind: "audio",
+      title: "Kept",
+      artist: "",
+      album: "",
+      duration: 1,
+      mime: "audio/mpeg",
+      bytes: 1,
+      addedAt: index.updatedAt,
+      updatedAt: index.updatedAt,
       manifest: "manifests/t1.json",
     });
     await fake.seedRepo(NAME, { "index.json": serializeIndex(index) });
@@ -62,7 +70,9 @@ describe("findOrCreateLibrary", () => {
     const result = await run();
 
     expect(result.status).toBe("reused");
-    expect(result.status === "reused" && result.index.tracks[0].title).toBe("Kept");
+    expect(result.status === "reused" && result.index.tracks[0].title).toBe(
+      "Kept",
+    );
     expect(writes(fake)).toEqual([]);
   });
 
@@ -103,7 +113,9 @@ describe("findOrCreateLibrary", () => {
 
   it("does not take over an index.json that is not ours", async () => {
     const { fake, run } = setup();
-    await fake.seedRepo(NAME, { "index.json": JSON.stringify({ name: "other" }) });
+    await fake.seedRepo(NAME, {
+      "index.json": JSON.stringify({ name: "other" }),
+    });
     fake.requests.length = 0;
 
     const result = await run();

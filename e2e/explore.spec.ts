@@ -69,11 +69,11 @@ test("tells the listener when an address is not a public library", async ({ page
 
 test("a new device finds the user's private library in Explore and restores songs as themselves", async ({ page }) => {
   await page.goto("/");
-  await seedPublicLibrary(page, "project-music-files", [
+  await seedPublicLibrary(page, "music-library", [
     { id: "mine1", title: "Mine One", seconds: 8 },
     { id: "mine2", title: "Mine Two", seconds: 8 },
   ]);
-  await page.evaluate(() => ((window as any).__fake.repos.get("project-music-files").private = true));
+  await page.evaluate(() => ((window as any).__fake.repos.get("music-library").private = true));
   await page.getByLabel("GitHub access token").fill("good-token");
   await page.getByRole("button", { name: "Sign in" }).click();
 
@@ -82,7 +82,7 @@ test("a new device finds the user's private library in Explore and restores song
   await prompt.getByRole("button", { name: "Browse" }).click();
 
   await expect(page.getByRole("heading", { name: "My libraries" })).toBeVisible();
-  await page.getByRole("link", { name: /project-music-files/ }).click();
+  await page.getByRole("link", { name: /music-library/ }).click();
   await expect(page.getByText("2 tracks")).toBeVisible({ timeout: 15_000 });
 
   // Private: fetched with the token, then played.

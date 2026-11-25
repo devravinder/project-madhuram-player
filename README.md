@@ -17,7 +17,7 @@ installed like an app. It works offline, with no account and no server.
 2. With sign-in: paste a GitHub token with repo access. In Settings, GitHub backup:
    - Nothing uploads by itself. Open "Not backed up", pick a library, and upload one song
      or all of them, leaving out large files if you like.
-   - Libraries: keep several (`project-music-files`, `-2`, ...). Make one public and use
+   - Libraries: keep several (`music-library`, `-2`, ...). Make one public and use
      "Copy link" to share it; the others stay private.
    - Sync brings in songs from your other devices; Download brings back removed ones.
    - New device: Explore lists My libraries, to play or pick songs without fetching all.

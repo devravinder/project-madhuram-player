@@ -11,7 +11,7 @@ import {
 } from "./indexTypes";
 import { LibraryBusyError, LibraryRepo } from "./library";
 
-const NAME = "project-music-files";
+const NAME = "music-library";
 const config = { maxFileBytes: 50, maxRepoBytes: 800 };
 
 const track = (id: string): TrackEntry => ({
@@ -42,7 +42,11 @@ beforeEach(async () => {
     "index.json": serializeIndex(createEmptyIndex(NAME, config)),
     "playlists.json": "[]",
   });
-  library = new LibraryRepo(new GithubApi(fake.token, fake.fetch), fake.login, NAME);
+  library = new LibraryRepo(
+    new GithubApi(fake.token, fake.fetch),
+    fake.login,
+    NAME,
+  );
 });
 
 const savedIndex = () => parseIndex(fake.fileText(NAME, "index.json")!);
@@ -92,13 +96,22 @@ describe("LibraryRepo", () => {
     });
 
     expect(builds).toBe(2);
-    expect(savedIndex().tracks.map((t) => t.id).sort()).toEqual(["mine", "theirs"]);
+    expect(
+      savedIndex()
+        .tracks.map((t) => t.id)
+        .sort(),
+    ).toEqual(["mine", "theirs"]);
   });
 
   it("keeps files it did not touch from a concurrent push", async () => {
-    fake.onNextRefUpdate(() => fake.pushFiles(NAME, { "playlists.json": '["theirs"]' }));
+    fake.onNextRefUpdate(() =>
+      fake.pushFiles(NAME, { "playlists.json": '["theirs"]' }),
+    );
 
-    await library.update((index) => ({ message: "x", index: withTrack(index, "a") }));
+    await library.update((index) => ({
+      message: "x",
+      index: withTrack(index, "a"),
+    }));
 
     expect(fake.fileText(NAME, "playlists.json")).toBe('["theirs"]');
   });

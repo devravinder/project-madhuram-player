@@ -14,7 +14,7 @@ import {
 import { LibraryRepo } from "./library";
 import { recoverShards, SHARD_MARKER_PATH } from "./shards";
 
-const NAME = "project-music-files";
+const NAME = "music-library";
 const PART = 100;
 const REPO_LIMIT = 250;
 const noSleep = async () => {};
@@ -45,12 +45,21 @@ beforeEach(async () => {
       createEmptyIndex(NAME, { maxFileBytes: PART, maxRepoBytes: REPO_LIMIT }),
     ),
   });
-  library = new LibraryRepo(new GithubApi(fake.token, fake.fetch), fake.login, NAME);
+  library = new LibraryRepo(
+    new GithubApi(fake.token, fake.fetch),
+    fake.login,
+    NAME,
+  );
 });
 
 const index = () => parseIndex(fake.fileText(NAME, "index.json")!);
 const upload = (id: string, size: number, seed = 1) =>
-  uploadTrack(library, meta(id), { media: makeFile(`${id}.bin`, randomBytes(size, seed)) }, { sleep: noSleep });
+  uploadTrack(
+    library,
+    meta(id),
+    { media: makeFile(`${id}.bin`, randomBytes(size, seed)) },
+    { sleep: noSleep },
+  );
 const manifestOf = (id: string) =>
   JSON.parse(fake.fileText(NAME, `manifests/${id}.json`)!) as Manifest;
 
@@ -63,7 +72,9 @@ describe("rollover", () => {
     expect(saved.repos.map((r) => r.name)).toEqual([NAME, `${NAME}-part-1`]);
     expect(saved.currentRepo).toBe(`${NAME}-part-1`);
     expect(fake.repos.get(`${NAME}-part-1`)?.private).toBe(true);
-    expect(JSON.parse(fake.fileText(`${NAME}-part-1`, SHARD_MARKER_PATH)!)).toEqual({
+    expect(
+      JSON.parse(fake.fileText(`${NAME}-part-1`, SHARD_MARKER_PATH)!),
+    ).toEqual({
       app: "madhuram",
       role: "shard",
       library: NAME,
@@ -150,17 +161,28 @@ describe("rollover", () => {
 
 describe("recoverShards", () => {
   it("adds marked shards missing from the index and ignores the rest", async () => {
-    await fake.seedRepo(`${NAME}-part-1`, { [SHARD_MARKER_PATH]: marker(), "data/x": "x".repeat(2048) });
+    await fake.seedRepo(`${NAME}-part-1`, {
+      [SHARD_MARKER_PATH]: marker(),
+      "data/x": "x".repeat(2048),
+    });
     await fake.seedRepo(`${NAME}-part-2`, { "other.txt": "unmarked" });
     await fake.seedRepo(`${NAME}-part-3`, { [SHARD_MARKER_PATH]: marker() });
-    await fake.seedRepo(`${NAME}-part-4`, { [SHARD_MARKER_PATH]: marker("another-library") });
+    await fake.seedRepo(`${NAME}-part-4`, {
+      [SHARD_MARKER_PATH]: marker("another-library"),
+    });
     await fake.seedRepo("unrelated", { "a.txt": "a" });
 
     const recovered = await recoverShards(library);
 
     expect(recovered.sort()).toEqual([`${NAME}-part-1`, `${NAME}-part-3`]);
-    expect(index().repos.map((r) => r.name)).toEqual([NAME, `${NAME}-part-1`, `${NAME}-part-3`]);
-    expect(index().repos.find((r) => r.name === `${NAME}-part-1`)!.usedBytes).toBeGreaterThan(1500);
+    expect(index().repos.map((r) => r.name)).toEqual([
+      NAME,
+      `${NAME}-part-1`,
+      `${NAME}-part-3`,
+    ]);
+    expect(
+      index().repos.find((r) => r.name === `${NAME}-part-1`)!.usedBytes,
+    ).toBeGreaterThan(1500);
   });
 
   it("does nothing when everything is already listed", async () => {

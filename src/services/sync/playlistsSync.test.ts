@@ -9,12 +9,14 @@ import { FakeGithub } from "@/testing/fakeGithub";
 import { beforeEach, describe, expect, it } from "vitest";
 import { syncPlaylists } from "./playlistsSync";
 
-const NAME = "project-music-files";
+const NAME = "music-library";
 let fake: FakeGithub;
 let library: LibraryRepo;
 
 const playlist = (id: string, updatedAt: string, songIds: string[] = []) => ({
-  id, name: id, songIds,
+  id,
+  name: id,
+  songIds,
   createdAt: new Date("2026-01-01T00:00:00.000Z"),
   updatedAt: new Date(updatedAt),
 });
@@ -26,7 +28,11 @@ beforeEach(async () => {
   fake = new FakeGithub();
   const api = new GithubApi(fake.token, fake.fetch);
   const found = await findOrCreateLibrary(
-    api, fake.login, NAME, { maxFileBytes: 100, maxRepoBytes: 1000 }, async () => {},
+    api,
+    fake.login,
+    NAME,
+    { maxFileBytes: 100, maxRepoBytes: 1000 },
+    async () => {},
   );
   if (found.status === "name-taken") throw new Error("unexpected");
   library = new LibraryRepo(api, fake.login, NAME, found.branch);
@@ -47,7 +53,9 @@ describe("syncPlaylists", () => {
   });
 
   it("downloads playlists to a fresh device", async () => {
-    await db.playlists.put(playlist("mine", "2026-02-01T00:00:00.000Z", ["s1"]));
+    await db.playlists.put(
+      playlist("mine", "2026-02-01T00:00:00.000Z", ["s1"]),
+    );
     await syncPlaylists(library);
 
     await db.playlists.clear();
@@ -105,15 +113,23 @@ describe("syncPlaylists", () => {
   });
 
   it("lets a fresh device's empty Favourites yield to the real one", async () => {
-    await db.playlists.put(playlist(FAVOURITE_PLAYLIST_ID, "2026-02-01T00:00:00.000Z", ["liked"]));
+    await db.playlists.put(
+      playlist(FAVOURITE_PLAYLIST_ID, "2026-02-01T00:00:00.000Z", ["liked"]),
+    );
     await syncPlaylists(library);
 
     await db.playlists.clear();
-    await db.playlists.put(playlist(FAVOURITE_PLAYLIST_ID, new Date(0).toISOString())); // new device default
+    await db.playlists.put(
+      playlist(FAVOURITE_PLAYLIST_ID, new Date(0).toISOString()),
+    ); // new device default
     await syncPlaylists(library);
 
-    expect((await db.playlists.get(FAVOURITE_PLAYLIST_ID))?.songIds).toEqual(["liked"]);
-    expect(remote().find((p) => p.id === FAVOURITE_PLAYLIST_ID)?.songIds).toEqual(["liked"]);
+    expect((await db.playlists.get(FAVOURITE_PLAYLIST_ID))?.songIds).toEqual([
+      "liked",
+    ]);
+    expect(
+      remote().find((p) => p.id === FAVOURITE_PLAYLIST_ID)?.songIds,
+    ).toEqual(["liked"]);
   });
 
   it("merges with a playlist change another device pushed meanwhile", async () => {
@@ -122,14 +138,26 @@ describe("syncPlaylists", () => {
       await fake.pushFiles(NAME, {
         "playlists.json": JSON.stringify({
           schemaVersion: 1,
-          playlists: [{ id: "theirs", name: "theirs", songIds: [], createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-02-02T00:00:00.000Z" }],
+          playlists: [
+            {
+              id: "theirs",
+              name: "theirs",
+              songIds: [],
+              createdAt: "2026-01-01T00:00:00.000Z",
+              updatedAt: "2026-02-02T00:00:00.000Z",
+            },
+          ],
         }),
       });
     });
 
     await syncPlaylists(library);
 
-    expect(remote().map((p) => p.id).sort()).toEqual(["mine", "theirs"]);
+    expect(
+      remote()
+        .map((p) => p.id)
+        .sort(),
+    ).toEqual(["mine", "theirs"]);
     expect(await db.playlists.get("theirs")).toBeDefined();
   });
 });

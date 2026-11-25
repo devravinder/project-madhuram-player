@@ -9,9 +9,15 @@ import { FakeGithub } from "@/testing/fakeGithub";
 import { makeFile, randomBytes } from "@/testing/files";
 import { beforeEach, describe, expect, it } from "vitest";
 import { outbox } from "./outbox";
-import { resumeQueued, syncNow, uploadTracks, type SyncContext, type SyncMode } from "./engine";
+import {
+  resumeQueued,
+  syncNow,
+  uploadTracks,
+  type SyncContext,
+  type SyncMode,
+} from "./engine";
 
-const NAME = "project-music-files";
+const NAME = "music-library";
 const PART = 100;
 const config = { maxFileBytes: PART, maxRepoBytes: 10_000 };
 const noSleep = async () => {};
@@ -23,19 +29,34 @@ let posts = 0;
 let ctx: SyncContext;
 
 const meta = (id: string): TrackMeta => ({
-  id, kind: "audio", title: `Song ${id}`, artist: "A", album: "B", duration: 3,
-  mime: "audio/mpeg", bytes: 0,
-  addedAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
+  id,
+  kind: "audio",
+  title: `Song ${id}`,
+  artist: "A",
+  album: "B",
+  duration: 3,
+  mime: "audio/mpeg",
+  bytes: 0,
+  addedAt: "2026-01-01T00:00:00.000Z",
+  updatedAt: "2026-01-01T00:00:00.000Z",
 });
 
 const addLocal = (id: string, size: number, seed = 1, cover = false) =>
   deviceProvider.writeTrack(meta(id), {
     media: makeFile(`${id}.mp3`, randomBytes(size, seed)),
-    cover: cover ? makeFile("c.jpg", randomBytes(30, seed + 50), "image/jpeg") : undefined,
+    cover: cover
+      ? makeFile("c.jpg", randomBytes(30, seed + 50), "image/jpeg")
+      : undefined,
   });
 
 const wipeDevice = () =>
-  Promise.all([db.songs.clear(), db.files.clear(), db.syncState.clear(), db.outbox.clear(), db.playlists.clear()]);
+  Promise.all([
+    db.songs.clear(),
+    db.files.clear(),
+    db.syncState.clear(),
+    db.outbox.clear(),
+    db.playlists.clear(),
+  ]);
 
 const snapshot = async () => ({
   songs: await db.songs.toArray(),
@@ -50,11 +71,14 @@ const restore = async (s: Awaited<ReturnType<typeof snapshot>>) => {
 };
 
 const remoteIndex = () => parseIndex(fake.fileText(NAME, "index.json")!);
-const sync = (options = {}, mode: SyncMode = "both") => syncNow(ctx, options, mode);
+const sync = (options = {}, mode: SyncMode = "both") =>
+  syncNow(ctx, options, mode);
 // New tracks go to GitHub only when the user uploads them.
 const upload = async (options = {}) => {
   const recorded = new Set(await db.syncState.toCollection().primaryKeys());
-  const ids = (await deviceProvider.listTracks()).map((t) => t.id).filter((id) => !recorded.has(id));
+  const ids = (await deviceProvider.listTracks())
+    .map((t) => t.id)
+    .filter((id) => !recorded.has(id));
   return uploadTracks(ctx, ids, NAME, options);
 };
 
@@ -70,7 +94,13 @@ beforeEach(async () => {
       ? Promise.reject(new TypeError("offline"))
       : fake.fetch(input, init);
   });
-  const found = await findOrCreateLibrary(api, fake.login, NAME, config, noSleep);
+  const found = await findOrCreateLibrary(
+    api,
+    fake.login,
+    NAME,
+    config,
+    noSleep,
+  );
   if (found.status === "name-taken") throw new Error("unexpected");
   ctx = {
     libraries: [new LibraryRepo(api, fake.login, NAME, found.branch)],
@@ -89,8 +119,14 @@ describe("syncNow", () => {
     const result = await upload();
 
     expect(result).toMatchObject({ queued: 2, done: 2, failed: 0 });
-    expect(remoteIndex().tracks.map((t) => t.id).sort()).toEqual(["aa1", "bb2"]);
-    expect((await db.syncState.toArray()).map((r) => r.trackId).sort()).toEqual(["aa1", "bb2"]);
+    expect(
+      remoteIndex()
+        .tracks.map((t) => t.id)
+        .sort(),
+    ).toEqual(["aa1", "bb2"]);
+    expect((await db.syncState.toArray()).map((r) => r.trackId).sort()).toEqual(
+      ["aa1", "bb2"],
+    );
     expect((await db.songs.get("bb2"))?.sha256).toHaveLength(64);
     expect(await db.outbox.count()).toBe(0);
   });
@@ -168,7 +204,9 @@ describe("syncNow", () => {
     const result = await sync();
 
     expect(result).toMatchObject({ queued: 1, done: 1 });
-    expect((await deviceProvider.listTracks()).map((t) => t.id)).toEqual(["keep"]);
+    expect((await deviceProvider.listTracks()).map((t) => t.id)).toEqual([
+      "keep",
+    ]);
   });
 
   it("keeps a track that was added elsewhere instead of deleting it", async () => {
@@ -184,7 +222,9 @@ describe("syncNow", () => {
     await restore(deviceA);
     await sync();
 
-    expect((await deviceProvider.listTracks()).map((t) => t.id).sort()).toEqual(["aa1", "new-on-b"]);
+    expect((await deviceProvider.listTracks()).map((t) => t.id).sort()).toEqual(
+      ["aa1", "new-on-b"],
+    );
   });
 
   it("resumes after the connection drops partway", async () => {
@@ -234,9 +274,13 @@ describe("syncNow", () => {
   it("does not save a track whose download is corrupt", async () => {
     await addLocal("aa1", 80);
     await upload();
-    const manifest = JSON.parse(fake.fileText(NAME, "manifests/aa1.json")!) as Manifest;
+    const manifest = JSON.parse(
+      fake.fileText(NAME, "manifests/aa1.json")!,
+    ) as Manifest;
     manifest.media.sha256 = "0".repeat(64);
-    await fake.pushFiles(NAME, { "manifests/aa1.json": JSON.stringify(manifest) });
+    await fake.pushFiles(NAME, {
+      "manifests/aa1.json": JSON.stringify(manifest),
+    });
 
     await wipeDevice();
     const now = Date.now();
@@ -261,8 +305,14 @@ describe("syncNow", () => {
     const result = await upload();
 
     expect(result.done).toBe(1); // only-a was pushed
-    expect((await deviceProvider.listTracks()).map((t) => t.id).sort()).toEqual(["here", "only-a"]);
-    expect(remoteIndex().tracks.map((t) => t.id).sort()).toEqual(["here", "only-a", "only-b"]);
+    expect((await deviceProvider.listTracks()).map((t) => t.id).sort()).toEqual(
+      ["here", "only-a"],
+    );
+    expect(
+      remoteIndex()
+        .tracks.map((t) => t.id)
+        .sort(),
+    ).toEqual(["here", "only-a", "only-b"]);
   });
 
   it("download only brings tracks in and sends nothing", async () => {
@@ -275,13 +325,19 @@ describe("syncNow", () => {
     await sync(); // pulls "a"
     await upload(); // pushes "local-only"
     await restore(deviceA);
-    const writesBefore = fake.requests.filter((r) => r.startsWith("POST")).length;
+    const writesBefore = fake.requests.filter((r) =>
+      r.startsWith("POST"),
+    ).length;
 
     const result = await sync({}, "download");
 
     expect(result.done).toBe(1); // pulled "local-only"
-    expect(fake.requests.filter((r) => r.startsWith("POST")).length).toBe(writesBefore);
-    expect((await deviceProvider.listTracks()).map((t) => t.id).sort()).toEqual(["a", "local-only"]);
+    expect(fake.requests.filter((r) => r.startsWith("POST")).length).toBe(
+      writesBefore,
+    );
+    expect((await deviceProvider.listTracks()).map((t) => t.id).sort()).toEqual(
+      ["a", "local-only"],
+    );
   });
 
   it("skips a push if the track was deleted while queued", async () => {

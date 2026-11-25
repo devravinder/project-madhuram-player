@@ -14,7 +14,7 @@ import {
   TrackFileMissingError,
 } from "./publicLibrary";
 
-const NAME = "project-music-files";
+const NAME = "music-library";
 const PART = 100;
 const noSleep = async () => {};
 

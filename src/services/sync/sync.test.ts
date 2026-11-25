@@ -19,7 +19,7 @@ import {
   uploadTrack,
 } from "./upload";
 
-const NAME = "project-music-files";
+const NAME = "music-library";
 const PART = 100;
 
 const meta = (id: string, overrides: Partial<TrackMeta> = {}): TrackMeta => ({

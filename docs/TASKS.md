@@ -84,3 +84,4 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 - [x] Notifications can be closed with ×; in-app confirmations instead of browser pop-ups
 - [x] Explore shows My libraries (private ones too, read with the token) and Following; a new device offers Download all or Browse
 - [x] Settings sections fold (open state remembered); dev tools available in production, loaded only when opened
+- [x] Default repo names: `music-library` and `music-library-home`

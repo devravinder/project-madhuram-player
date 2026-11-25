@@ -14,8 +14,8 @@ import {
 
 const config = { maxFileBytes: 50, maxRepoBytes: 800 };
 const noSleep = async () => {};
-const HOME = "project-music-home";
-const LIB = "project-music-files";
+const HOME = "music-library-home";
+const LIB = "music-library";
 
 const optionsFor = (fake: FakeGithub, fetchFn: typeof fetch = fake.fetch) => ({
   api: new GithubApi(fake.token, fetchFn),
@@ -48,7 +48,9 @@ describe("openHome", () => {
     const fake = new FakeGithub();
     await openLibrary(optionsFor(fake), HOME);
 
-    await expect(openHome(optionsFor(fake), HOME, LIB)).rejects.toBeInstanceOf(LibraryNameTakenError);
+    await expect(openHome(optionsFor(fake), HOME, LIB)).rejects.toBeInstanceOf(
+      LibraryNameTakenError,
+    );
   });
 });
 
@@ -57,7 +59,10 @@ describe("openLibrary", () => {
     const fake = new FakeGithub();
     const library = await openLibrary(optionsFor(fake), LIB);
 
-    expect((await library.read()).index).toMatchObject({ role: "library", config });
+    expect((await library.read()).index).toMatchObject({
+      role: "library",
+      config,
+    });
     expect(fake.repos.get(LIB)?.private).toBe(true);
   });
 
@@ -65,7 +70,9 @@ describe("openLibrary", () => {
     const fake = new FakeGithub();
     await fake.seedRepo(LIB, { "app.ts": "code" });
 
-    await expect(openLibrary(optionsFor(fake), LIB)).rejects.toBeInstanceOf(LibraryNameTakenError);
+    await expect(openLibrary(optionsFor(fake), LIB)).rejects.toBeInstanceOf(
+      LibraryNameTakenError,
+    );
     expect(fake.paths(LIB)).toEqual(["app.ts"]);
   });
 
@@ -73,7 +80,9 @@ describe("openLibrary", () => {
     const fake = new FakeGithub();
     await openHome(optionsFor(fake), HOME, LIB);
 
-    await expect(openLibrary(optionsFor(fake), HOME)).rejects.toBeInstanceOf(LibraryNameTakenError);
+    await expect(openLibrary(optionsFor(fake), HOME)).rejects.toBeInstanceOf(
+      LibraryNameTakenError,
+    );
   });
 
   // Regression: GitHub sends max-age=60, so a browser cached the branch
@@ -84,7 +93,8 @@ describe("openLibrary", () => {
     const cache = new Map<string, Response>();
     const cachingFetch: typeof fetch = async (input, init) => {
       const key = String(input);
-      const cacheable = (init?.method ?? "GET") === "GET" && init?.cache !== "no-store";
+      const cacheable =
+        (init?.method ?? "GET") === "GET" && init?.cache !== "no-store";
       const hit = cacheable ? cache.get(key) : undefined;
       if (hit) return hit.clone();
       const response = await fake.fetch(input, init);
@@ -107,8 +117,12 @@ describe("the list of libraries", () => {
       libraries: [LIB, `${LIB}-2`],
       defaultLibrary: LIB,
     });
-    expect(await setDefaultLibrary(home, `${LIB}-2`)).toMatchObject({ defaultLibrary: `${LIB}-2` });
-    expect(parseIndex(fake.fileText(HOME, "index.json")!).defaultLibrary).toBe(`${LIB}-2`);
+    expect(await setDefaultLibrary(home, `${LIB}-2`)).toMatchObject({
+      defaultLibrary: `${LIB}-2`,
+    });
+    expect(parseIndex(fake.fileText(HOME, "index.json")!).defaultLibrary).toBe(
+      `${LIB}-2`,
+    );
   });
 
   it("replaces a taken name, default included", async () => {

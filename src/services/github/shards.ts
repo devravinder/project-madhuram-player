@@ -15,12 +15,14 @@ const shardPattern = (primary: string) =>
   new RegExp(`^${escapeRegExp(primary)}-part-(\\d+)$`);
 
 // Overflow repos are "<library>-part-<n>", so they never clash with another
-// library's name such as "project-music-files-2".
+// library's name such as "music-library-2".
 export const shardName = (primary: string, n: number) => `${primary}-part-${n}`;
 
 export function nextShardNumber(index: LibraryIndex): number {
   const pattern = shardPattern(index.repos[0].name);
-  const numbers = index.repos.map((repo) => Number(pattern.exec(repo.name)?.[1] ?? 0));
+  const numbers = index.repos.map((repo) =>
+    Number(pattern.exec(repo.name)?.[1] ?? 0),
+  );
   return Math.max(0, ...numbers) + 1;
 }
 
@@ -28,7 +30,11 @@ async function readMarker(
   library: LibraryRepo,
   repo: string,
 ): Promise<ShardMarker | undefined> {
-  const file = await library.api.getFile(library.owner, repo, SHARD_MARKER_PATH);
+  const file = await library.api.getFile(
+    library.owner,
+    repo,
+    SHARD_MARKER_PATH,
+  );
   if (!file) return undefined;
   try {
     return JSON.parse(file.text) as ShardMarker;
@@ -61,15 +67,24 @@ async function createShard(
 
     if (existing) {
       if (isOurShard(await readMarker(library, name), primary)) {
-        if (existing.private !== isPrivate) await api.setRepoPrivate(owner, name, isPrivate);
+        if (existing.private !== isPrivate)
+          await api.setRepoPrivate(owner, name, isPrivate);
         return { name, usedBytes: sizeEstimate(existing.size), full: false };
       }
       continue; // the name belongs to something else
     }
 
-    const created = await api.createRepo(name, `Madhuram music library, part ${n}`, isPrivate);
+    const created = await api.createRepo(
+      name,
+      `Madhuram music library, part ${n}`,
+      isPrivate,
+    );
     await waitForHead(api, owner, name, created.default_branch, sleep);
-    const marker: ShardMarker = { app: APP_MARKER, role: "shard", library: primary };
+    const marker: ShardMarker = {
+      app: APP_MARKER,
+      role: "shard",
+      library: primary,
+    };
     await writeTextFile(
       api,
       owner,
@@ -133,7 +148,11 @@ export async function recoverShards(library: LibraryRepo): Promise<string[]> {
   const found: RepoInfo[] = [];
   for (const repo of candidates) {
     if (isOurShard(await readMarker(library, repo.name), primary)) {
-      found.push({ name: repo.name, usedBytes: sizeEstimate(repo.size), full: false });
+      found.push({
+        name: repo.name,
+        usedBytes: sizeEstimate(repo.size),
+        full: false,
+      });
     }
   }
   if (found.length === 0) return [];
