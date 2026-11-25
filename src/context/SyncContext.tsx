@@ -44,6 +44,7 @@ import {
   type StopReason,
 } from "@/services/sync/outbox";
 import { syncPlaylists } from "@/services/sync/playlistsSync";
+import { holdScreen } from "@/services/wakeLock";
 import {
   deleteLibrary as deleteLibraryRepos,
   forgetLibrariesExcept,
@@ -309,6 +310,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       cancelled.current = false;
       setError(undefined);
       setPhase("connecting");
+      // The phone must not sleep in the middle of a transfer.
+      const releaseScreen = holdScreen();
 
       try {
         const current = await openSession();
@@ -354,6 +357,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           report(problem);
         }
       } finally {
+        releaseScreen();
         running.current = false;
         setPhase("idle");
       }

@@ -173,6 +173,16 @@ One media element plays every track, audio or video, so the queue, progress and 
   Until the worker controls the page (the first visit), split files are downloaded first.
 - **Private libraries:** downloaded with the token, then played. Streaming them would need
   the token in the worker and is not done yet.
+
+## Screen wake lock
+
+While a sync, upload or download runs, the app holds a Screen Wake Lock
+(`src/services/wakeLock.ts`), so the device does not sleep and stop the transfer. The
+browser drops it when the app leaves the screen; the app takes it again on return if the
+transfer still runs, and lets go when the last transfer ends. Without support, nothing
+changes. A service worker cannot carry transfers while the app is closed: Background Sync
+is short-lived and Chrome-only, and Background Fetch cannot upload.
+
 - **Download:** saves a local copy. When signed in, the copy is also uploaded to the user's
   repo as a new file.
 

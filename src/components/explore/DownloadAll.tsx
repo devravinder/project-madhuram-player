@@ -1,6 +1,7 @@
 import { Button } from "@/components/Elements";
 import { useSavedHashes } from "@/hooks/useSavedHashes";
 import { downloadCopy } from "@/services/public/remote";
+import { holdScreen } from "@/services/wakeLock";
 import type { Song } from "@/types/music";
 import { Download } from "lucide-react";
 import { useRef, useState } from "react";
@@ -12,10 +13,13 @@ export default function DownloadAll({ songs }: { songs: Song[] }) {
   const [progress, setProgress] = useState<{ done: number; total: number }>();
   const stop = useRef(false);
 
-  const missing = songs.filter((song) => !song.sha256 || !saved.has(song.sha256));
+  const missing = songs.filter(
+    (song) => !song.sha256 || !saved.has(song.sha256),
+  );
 
   const run = async () => {
     stop.current = false;
+    const releaseScreen = holdScreen(); // the phone must not sleep midway
     const queue = [...missing];
     let done = 0;
     let failed = 0;
@@ -32,6 +36,7 @@ export default function DownloadAll({ songs }: { songs: Song[] }) {
       setProgress({ done: done + failed, total: queue.length });
     }
 
+    releaseScreen();
     setProgress(undefined);
     const failures = failed > 0 ? `, ${failed} failed` : "";
     toast(`Saved ${done} of ${queue.length}${failures}`);
@@ -39,17 +44,26 @@ export default function DownloadAll({ songs }: { songs: Song[] }) {
 
   if (progress) {
     return (
-      <Button.Secondary onClick={() => (stop.current = true)} className="whitespace-nowrap">
+      <Button.Secondary
+        onClick={() => (stop.current = true)}
+        className="whitespace-nowrap"
+      >
         Stop ({progress.done}/{progress.total})
       </Button.Secondary>
     );
   }
 
   return (
-    <Button.Secondary onClick={run} disabled={missing.length === 0} className="whitespace-nowrap disabled:opacity-60">
+    <Button.Secondary
+      onClick={run}
+      disabled={missing.length === 0}
+      className="whitespace-nowrap disabled:opacity-60"
+    >
       <Download size={18} />
       <span className="hidden sm:block">
-        {missing.length === 0 ? "All saved" : `Download all (${missing.length})`}
+        {missing.length === 0
+          ? "All saved"
+          : `Download all (${missing.length})`}
       </span>
     </Button.Secondary>
   );

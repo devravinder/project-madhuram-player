@@ -353,3 +353,22 @@ test("renames a backed-up song, saves its file, and deletes a library", async ({
   await expect(page.getByText("Family Songs", { exact: true })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText(`${REPO} · 1 tracks`)).toBeVisible();
 });
+
+test("keeps the screen on while a transfer runs, and lets go after", async ({ page }) => {
+  const { tryWithoutLogin } = await import("./fixtures");
+  await tryWithoutLogin(page);
+  const result = await page.evaluate(async () => {
+    const { withScreenOn, isScreenHeld } = await import(/* @vite-ignore */ "/src/services/wakeLock.ts");
+    if (!("wakeLock" in navigator)) return { supported: false, during: false, after: false };
+    let during = false;
+    await withScreenOn(async () => {
+      for (let i = 0; i < 50 && !during; i++) {
+        await new Promise((r) => setTimeout(r, 20));
+        during = isScreenHeld();
+      }
+    });
+    await new Promise((r) => setTimeout(r, 50));
+    return { supported: true, during, after: isScreenHeld() };
+  });
+  expect(result).toEqual({ supported: true, during: true, after: false });
+});

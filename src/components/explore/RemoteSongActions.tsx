@@ -1,6 +1,7 @@
 import { IconButton } from "@/components/Elements";
 import { useSavedHashes } from "@/hooks/useSavedHashes";
 import { downloadCopy } from "@/services/public/remote";
+import { withScreenOn } from "@/services/wakeLock";
 import type { Song } from "@/types/music";
 import { Check, Download, LoaderCircle } from "lucide-react";
 import { useState, type MouseEvent } from "react";
@@ -18,7 +19,7 @@ export default function RemoteSongActions({ song }: { song: Song }) {
     if (busy || isSaved) return;
     setBusy(true);
     try {
-      await downloadCopy(song);
+      await withScreenOn(() => downloadCopy(song));
       // Backing it up is the user's choice, in Settings.
       toast.success(`Saved ${song.title}`);
     } catch (error) {
@@ -30,7 +31,11 @@ export default function RemoteSongActions({ song }: { song: Song }) {
 
   if (isSaved) {
     return (
-      <span className="p-2 text-primary" role="img" aria-label="Saved on this device">
+      <span
+        className="p-2 text-primary"
+        role="img"
+        aria-label="Saved on this device"
+      >
         <Check size={20} />
       </span>
     );
@@ -43,7 +48,11 @@ export default function RemoteSongActions({ song }: { song: Song }) {
       disabled={busy}
       className="h-9 w-9 disabled:opacity-60"
     >
-      {busy ? <LoaderCircle size={18} className="animate-spin" /> : <Download size={18} />}
+      {busy ? (
+        <LoaderCircle size={18} className="animate-spin" />
+      ) : (
+        <Download size={18} />
+      )}
     </IconButton>
   );
 }
