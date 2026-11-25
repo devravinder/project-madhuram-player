@@ -17,7 +17,7 @@ const main = tv({
   base: "absolute pt-[env(safe-area-inset-top)] pb-[calc(4rem+max(env(safe-area-inset-bottom),0.5rem))] inset-0 overflow-y-auto",
 });
 const mainContainer = tv({ base: "h-full flex flex-col relative" });
-const mainSection = tv({ base: "flex-1 overflow-y-auto px-4 py-2" });
+const mainSection = tv({ base: "flex-1 overflow-y-auto px-2 sm:px-4 py-2" });
 
 // Main layout parts: don't change (careful).
 export const Layout = ({ className, ...p }: ComponentProps<"div">) => (
@@ -40,7 +40,7 @@ export const MainSection = ({ className, ...p }: ComponentProps<"section">) => (
 );
 
 const pageLayout = tv({
-  base: "relative h-full flex flex-col gap-6 px-4 pt-2",
+  base: "relative h-full flex flex-col gap-6 px-2 sm:px-4 pt-2",
 });
 const pageMain = tv({ base: "flex-1 overflow-y-auto" });
 const pageMainContainer = tv({ base: "h-full flex flex-col relative" });
@@ -59,10 +59,7 @@ export const PageMainContainer = ({
 }: ComponentProps<"div">) => (
   <div className={pageMainContainer({ className })} {...p} />
 );
-export const PageMainSection = ({
-  className,
-  ...p
-}: ComponentProps<"div">) => (
+export const PageMainSection = ({ className, ...p }: ComponentProps<"div">) => (
   <div className={pageMainSection({ className })} {...p} />
 );
 
@@ -75,10 +72,7 @@ const iconButton = tv({
   },
 });
 
-export const IconButton = ({
-  className,
-  ...p
-}: ComponentProps<"button">) => (
+export const IconButton = ({ className, ...p }: ComponentProps<"button">) => (
   <button type="button" className={iconButton({ className })} {...p} />
 );
 export const HeaderIcon = ({ className, ...p }: ComponentProps<"button">) => (
@@ -112,10 +106,7 @@ const img = tv({
 const coverImg = tv({ base: "h-full w-full rounded-lg object-cover" });
 const uppercase = tv({ base: "font-semibold uppercase" });
 
-export const AvatarContainer = ({
-  className,
-  ...p
-}: ComponentProps<"div">) => (
+export const AvatarContainer = ({ className, ...p }: ComponentProps<"div">) => (
   <div className={avatarContainer({ className })} {...p} />
 );
 export const Img = ({ className, alt = "", ...p }: ComponentProps<"img">) => (
