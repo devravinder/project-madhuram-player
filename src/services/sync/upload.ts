@@ -17,8 +17,8 @@ import { manifestPath, partPath, splitBlob } from "./split";
 const MAX_COMMIT_ATTEMPTS = 5;
 
 // The blob API takes base64 in JSON (a third larger), and GitHub answers 422
-// for big blobs, so parts stay at 25 MiB even if a library's index allows more.
-export const MAX_PART_BYTES = 25 * 1024 * 1024;
+// for big blobs, so parts stay at 24.5 MiB even if a library's index allows more.
+export const MAX_PART_BYTES = 24.5 * 1024 * 1024;
 
 export const partSize = (index: LibraryIndex) =>
   Math.min(index.config.maxFileBytes, MAX_PART_BYTES);

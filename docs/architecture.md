@@ -103,8 +103,8 @@ flowchart TD
 ## Size accounting
 
 Each repo's size is counted by the app from its own uploads, because the API size lags.
-Limits (25 MB per part, 950 MB per repo) are config values stored in the index.
-Parts never exceed 25 MiB whatever the index says: the blob API sends base64 in JSON and refuses large blobs with 422.
+Limits (24.5 MiB per part, 950 MB per repo) are config values stored in the index.
+Parts never exceed 24.5 MiB whatever the index says: the blob API sends base64 in JSON and refuses large blobs with 422.
 
 ## Upload
 

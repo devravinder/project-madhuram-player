@@ -48,7 +48,7 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 - [x] Byte split, manifest, atomic commit upload, with size and hash checks on download
 - [x] Persisted outbox with resume (retry with backoff, rate-limit hold, offline stop)
 - [x] Repo rollover at the size limit (a large file can span repos; leftover space is reused)
-- [x] Parts capped at 25 MiB (large blobs fail with 422)
+- [x] Parts capped at 24.5 MiB (large blobs fail with 422)
 - [x] Playlists sync and tombstones (newest edit wins, deletes kept as tombstones, Recently Played stays on the device)
 - [x] Sync screen: sync, upload only, download only, with status, stop and retry
 
