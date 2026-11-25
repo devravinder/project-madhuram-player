@@ -16,6 +16,13 @@ import { manifestPath, partPath, splitBlob } from "./split";
 
 const MAX_COMMIT_ATTEMPTS = 5;
 
+// The blob API takes base64 in JSON (a third larger), and GitHub answers 422
+// for big blobs, so parts stay at 25 MiB even if a library's index allows more.
+export const MAX_PART_BYTES = 25 * 1024 * 1024;
+
+export const partSize = (index: LibraryIndex) =>
+  Math.min(index.config.maxFileBytes, MAX_PART_BYTES);
+
 export class InvalidLimitsError extends Error {
   constructor() {
     super("The file size limit is larger than the repository size limit.");
@@ -71,16 +78,24 @@ function planParts(
     const source = files[file];
     if (!source) continue;
 
-    splitBlob(source, index.config.maxFileBytes).forEach((blob, n) => {
+    splitBlob(source, partSize(index)).forEach((blob, n) => {
       const repo = openRepos(index).find(
         (candidate) =>
-          candidate.usedBytes + (planned.get(candidate.name) ?? 0) + blob.size <=
+          candidate.usedBytes +
+            (planned.get(candidate.name) ?? 0) +
+            blob.size <=
           index.config.maxRepoBytes,
       );
       if (!repo) throw new RepoFullError(index.currentRepo);
 
       planned.set(repo.name, (planned.get(repo.name) ?? 0) + blob.size);
-      result.push({ file, n, blob, repo: repo.name, path: partPath(trackId, file, n) });
+      result.push({
+        file,
+        n,
+        blob,
+        repo: repo.name,
+        path: partPath(trackId, file, n),
+      });
     });
   }
   return result;
@@ -132,11 +147,7 @@ export async function commitShardParts(
   throw new Error(`Repository ${repo} keeps changing. Try again shortly.`);
 }
 
-const toFileRef = (
-  file: File,
-  sha256: string,
-  parts: PartRef[],
-): FileRef => ({
+const toFileRef = (file: File, sha256: string, parts: PartRef[]): FileRef => ({
   name: file.name,
   mime: file.type,
   bytes: file.size,
@@ -161,26 +172,45 @@ export async function uploadTrack(
   if (existing?.sha256 === mediaSha) return { ...existing, sha256: mediaSha };
 
   const coverSha = files.cover ? await sha256Hex(files.cover) : undefined;
-  const planned = await planWithRollover(library, meta.id, files, index, options);
+  const planned = await planWithRollover(
+    library,
+    meta.id,
+    files,
+    index,
+    options,
+  );
 
   // Upload every part; remember each blob id.
   const refs: PartRef[] = [];
   const byRepo = new Map<string, { path: string; sha: string }[]>();
   for (const [done, part] of planned.entries()) {
     const sha = await api.createBlob(owner, part.repo, part.blob);
-    refs.push({ n: part.n, repo: part.repo, path: part.path, bytes: part.blob.size, sha });
-    byRepo.set(part.repo, [...(byRepo.get(part.repo) ?? []), { path: part.path, sha }]);
+    refs.push({
+      n: part.n,
+      repo: part.repo,
+      path: part.path,
+      bytes: part.blob.size,
+      sha,
+    });
+    byRepo.set(part.repo, [
+      ...(byRepo.get(part.repo) ?? []),
+      { path: part.path, sha },
+    ]);
     options.onProgress?.(done + 1, planned.length);
   }
 
   const addedBytes = new Map<string, number>();
   for (const part of planned) {
-    addedBytes.set(part.repo, (addedBytes.get(part.repo) ?? 0) + part.blob.size);
+    addedBytes.set(
+      part.repo,
+      (addedBytes.get(part.repo) ?? 0) + part.blob.size,
+    );
   }
 
   const message = `Add ${meta.title}`;
   for (const [repo, parts] of byRepo) {
-    if (repo !== library.repo) await commitShardParts(api, owner, repo, message, parts);
+    if (repo !== library.repo)
+      await commitShardParts(api, owner, repo, message, parts);
   }
 
   const partsOf = (file: "media" | "cover") =>
@@ -214,7 +244,9 @@ export async function uploadTrack(
     return {
       message,
       index: { ...current, tracks: [...tracks, entry], repos },
-      text: [{ path: entry.manifest, content: JSON.stringify(manifest, null, 2) }],
+      text: [
+        { path: entry.manifest, content: JSON.stringify(manifest, null, 2) },
+      ],
       blobs: byRepo.get(library.repo) ?? [],
     };
   });

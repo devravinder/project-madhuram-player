@@ -12,7 +12,12 @@ import { makeFile, randomBytes } from "@/testing/files";
 import { beforeEach, describe, expect, it } from "vitest";
 import { fetchTrackFiles, IntegrityError } from "./download";
 import { joinParts, splitBlob } from "./split";
-import { InvalidLimitsError, uploadTrack } from "./upload";
+import {
+  InvalidLimitsError,
+  MAX_PART_BYTES,
+  partSize,
+  uploadTrack,
+} from "./upload";
 
 const NAME = "project-music-files";
 const PART = 100;
@@ -41,7 +46,11 @@ const start = async (maxRepoBytes = 10_000) => {
       createEmptyIndex(NAME, { maxFileBytes: PART, maxRepoBytes }),
     ),
   });
-  library = new LibraryRepo(new GithubApi(fake.token, fake.fetch), fake.login, NAME);
+  library = new LibraryRepo(
+    new GithubApi(fake.token, fake.fetch),
+    fake.login,
+    NAME,
+  );
 };
 
 beforeEach(() => start());
@@ -75,6 +84,19 @@ describe("splitBlob", () => {
 });
 
 describe("uploadTrack", () => {
+  it("never makes parts over the blob API size, whatever the index allows", () => {
+    const index = createEmptyIndex(NAME, {
+      maxFileBytes: 51380224,
+      maxRepoBytes: 996147200,
+    });
+    expect(partSize(index)).toBe(MAX_PART_BYTES);
+    expect(
+      partSize(
+        createEmptyIndex(NAME, { maxFileBytes: 100, maxRepoBytes: 800 }),
+      ),
+    ).toBe(100);
+  });
+
   it("stores a small track as one part with a manifest and index entry", async () => {
     const bytes = randomBytes(60);
     const before = fake.commitCount(NAME);
@@ -132,33 +154,52 @@ describe("uploadTrack", () => {
     await uploadTrack(library, meta("gh4"), files);
 
     expect(fake.commitCount(NAME)).toBe(commits);
-    expect(fake.requests.filter((r) => r.startsWith("POST")).length).toBe(writes);
+    expect(fake.requests.filter((r) => r.startsWith("POST")).length).toBe(
+      writes,
+    );
   });
 
   it("uploads again when the content changed", async () => {
-    await uploadTrack(library, meta("ij5"), { media: makeFile("s.mp3", randomBytes(40, 1)) });
-    await uploadTrack(library, meta("ij5"), { media: makeFile("s.mp3", randomBytes(40, 2)) });
+    await uploadTrack(library, meta("ij5"), {
+      media: makeFile("s.mp3", randomBytes(40, 1)),
+    });
+    await uploadTrack(library, meta("ij5"), {
+      media: makeFile("s.mp3", randomBytes(40, 2)),
+    });
 
     expect(savedIndex().tracks).toHaveLength(1);
     const manifest = manifestOf("ij5");
-    expect(fake.fileBytes(NAME, manifest.media.parts[0].path)).toEqual(randomBytes(40, 2));
+    expect(fake.fileBytes(NAME, manifest.media.parts[0].path)).toEqual(
+      randomBytes(40, 2),
+    );
   });
 
   it("keeps both tracks when another device adds one at the same time", async () => {
-    await uploadTrack(library, meta("kl6"), { media: makeFile("a.mp3", randomBytes(10)) });
+    await uploadTrack(library, meta("kl6"), {
+      media: makeFile("a.mp3", randomBytes(10)),
+    });
     fake.onNextRefUpdate(async () => {
       const current = savedIndex();
       await fake.pushFiles(NAME, {
         "index.json": serializeIndex({
           ...current,
-          tracks: [...current.tracks, { ...meta("theirs"), manifest: "manifests/theirs.json" }],
+          tracks: [
+            ...current.tracks,
+            { ...meta("theirs"), manifest: "manifests/theirs.json" },
+          ],
         }),
       });
     });
 
-    await uploadTrack(library, meta("mn7"), { media: makeFile("b.mp3", randomBytes(10)) });
+    await uploadTrack(library, meta("mn7"), {
+      media: makeFile("b.mp3", randomBytes(10)),
+    });
 
-    expect(savedIndex().tracks.map((t) => t.id).sort()).toEqual(["kl6", "mn7", "theirs"]);
+    expect(
+      savedIndex()
+        .tracks.map((t) => t.id)
+        .sort(),
+    ).toEqual(["kl6", "mn7", "theirs"]);
   });
 
   it("refuses limits that can never fit, without making repos", async () => {
@@ -166,7 +207,9 @@ describe("uploadTrack", () => {
     const commits = fake.commitCount(NAME);
 
     await expect(
-      uploadTrack(library, meta("op8"), { media: makeFile("x.bin", randomBytes(200)) }),
+      uploadTrack(library, meta("op8"), {
+        media: makeFile("x.bin", randomBytes(200)),
+      }),
     ).rejects.toBeInstanceOf(InvalidLimitsError);
 
     expect(fake.commitCount(NAME)).toBe(commits);
@@ -187,18 +230,28 @@ describe("uploadTrack", () => {
 
 describe("fetchTrackFiles", () => {
   it("rejects a part with the wrong size", async () => {
-    await uploadTrack(library, meta("st1"), { media: makeFile("s.mp3", randomBytes(50)) });
+    await uploadTrack(library, meta("st1"), {
+      media: makeFile("s.mp3", randomBytes(50)),
+    });
 
     await expect(
-      fetchTrackFiles(manifestOf("st1"), async () => new Blob([randomBytes(10)])),
+      fetchTrackFiles(
+        manifestOf("st1"),
+        async () => new Blob([randomBytes(10)]),
+      ),
     ).rejects.toBeInstanceOf(IntegrityError);
   });
 
   it("rejects content that does not match the hash", async () => {
-    await uploadTrack(library, meta("uv2"), { media: makeFile("s.mp3", randomBytes(50, 1)) });
+    await uploadTrack(library, meta("uv2"), {
+      media: makeFile("s.mp3", randomBytes(50, 1)),
+    });
 
     await expect(
-      fetchTrackFiles(manifestOf("uv2"), async () => new Blob([randomBytes(50, 99)])),
+      fetchTrackFiles(
+        manifestOf("uv2"),
+        async () => new Blob([randomBytes(50, 99)]),
+      ),
     ).rejects.toBeInstanceOf(IntegrityError);
   });
 });
