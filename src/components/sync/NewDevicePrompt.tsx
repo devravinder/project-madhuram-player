@@ -55,7 +55,7 @@ export default function NewDevicePrompt() {
       0,
     );
     toast(`You have ${songs} ${songs === 1 ? "song" : "songs"} on GitHub`, {
-      description: `${formatBytes(bytes)}. Download all to this device, or browse in Explore and pick.`,
+      description: `${formatBytes(bytes)}. Download all, or browse and pick.`,
       duration: Infinity,
       action: {
         label: "Download all",

@@ -1,4 +1,4 @@
-import { Import } from "lucide-react";
+import { FolderPlus } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { importMediaFile } from "@/services/importService";
@@ -106,9 +106,11 @@ export function UploadModal() {
           }`}
         >
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-secondary flex items-center justify-center">
-            <Import size={32} className="text-muted-foreground" />
+            <FolderPlus size={32} className="text-muted-foreground" />
           </div>
-          <p className="font-medium mb-2">Drag & drop audio or video files here</p>
+          <p className="font-medium mb-2">
+            Drag & drop audio or video files here
+          </p>
           <p className="text-sm text-muted-foreground mb-4">
             Supports {MEDIA_FORMATS_LABEL}
           </p>

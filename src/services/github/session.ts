@@ -12,9 +12,7 @@ export class LibraryNameTakenError extends Error {
   readonly repo: string;
 
   constructor(repo: string) {
-    super(
-      `A repository named ${repo} already exists and is not a Madhuram library.`,
-    );
+    super(`${repo} is used by another repo. Choose another name.`);
     this.repo = repo;
   }
 }

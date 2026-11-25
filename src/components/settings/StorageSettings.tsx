@@ -24,9 +24,9 @@ function Meter({
     total > 0 ? Math.min(100, Math.round((used / total) * 100)) : 0;
   return (
     <div className="flex flex-col gap-1">
-      <div className="flex justify-between text-sm">
-        <span>{label}</span>
-        <span className="text-muted-foreground">
+      <div className="flex justify-between gap-2 text-sm min-w-0">
+        <span className="min-w-0 truncate">{label}</span>
+        <span className="shrink-0 text-muted-foreground">
           {formatBytes(used)} of {formatBytes(total)}
         </span>
       </div>
@@ -86,20 +86,20 @@ export default function StorageSettings() {
         />
       ) : (
         <p className="text-sm text-muted-foreground">
-          This browser does not report how much space is used.
+          This browser does not show space used.
         </p>
       )}
 
       {info?.persisted ? (
         <p className="text-sm text-muted-foreground flex items-center gap-2">
-          <ShieldCheck size={16} className="text-primary" /> The browser will
-          not clear your music when space runs low.
+          <ShieldCheck size={16} className="text-primary" /> Your music is kept
+          when space runs low.
         </p>
       ) : (
         info?.canPersist && (
           <div className="flex flex-col gap-2">
             <p className="text-sm text-muted-foreground">
-              Browsers may clear saved music when space runs low.
+              The browser may clear music when space runs low.
             </p>
             <Button.Secondary
               onClick={() => void persist()}
@@ -123,7 +123,7 @@ export default function StorageSettings() {
           ))
         ) : (
           <p className="text-sm text-muted-foreground">
-            Sync once to see how much of your GitHub storage is used.
+            Sync once to see GitHub space.
           </p>
         ))}
     </SettingsSection>

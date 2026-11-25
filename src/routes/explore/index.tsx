@@ -11,6 +11,7 @@ import {
   PageMainContainer,
   PageMainSection,
 } from "@/components/Elements";
+import MyLibraries from "@/components/explore/MyLibraries";
 import { useSync } from "@/context/SyncContext";
 import { usePublicTracks } from "@/queries/publicLibrary";
 import {
@@ -21,8 +22,8 @@ import {
 } from "@/services/public/sourcesService";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Globe, Lock, Plus, X } from "lucide-react";
-import { useEffect, useState, type FormEvent } from "react";
+import { Globe, Plus, X } from "lucide-react";
+import { useState, type FormEvent } from "react";
 
 export const Route = createFileRoute("/explore/")({
   component: Explore,
@@ -40,72 +41,14 @@ function FollowedName({
 }) {
   const { data } = usePublicTracks(owner, repo);
   if (!data?.displayName)
-    return <span className="block line-clamp-1">{address}</span>;
+    return <span className="block truncate">{address}</span>;
   return (
     <>
-      <span className="block line-clamp-1">{data.displayName}</span>
-      <span className="block line-clamp-1 text-xs font-normal text-muted-foreground">
+      <span className="block truncate">{data.displayName}</span>
+      <span className="block truncate text-xs font-normal text-muted-foreground">
         {address}
       </span>
     </>
-  );
-}
-
-// The signed-in user's libraries, private ones too, so a new device can
-// play or download them without a full sync.
-function MyLibraries() {
-  const { libraries, owner, loadLibraries, error } = useSync();
-
-  useEffect(() => {
-    if (!libraries) void loadLibraries();
-  }, [libraries, loadLibraries]);
-
-  return (
-    <section className="flex flex-col gap-2" aria-labelledby="my-libraries">
-      <h2 id="my-libraries" className="text-sm font-medium">
-        My libraries
-      </h2>
-      {!libraries || !owner ? (
-        <p className="text-muted-foreground">
-          {error ?? "Loading your libraries..."}
-        </p>
-      ) : (
-        <ul className="flex flex-col gap-2">
-          {libraries.map((library) => (
-            <li
-              key={library.name}
-              className="border border-card rounded-lg p-2"
-            >
-              <Link
-                to="/explore/$owner/$repo"
-                params={{ owner, repo: library.name }}
-                className="flex flex-row items-center gap-2 min-w-0"
-              >
-                {library.isPrivate ? (
-                  <Lock
-                    size={16}
-                    aria-label="Private"
-                    className="shrink-0 text-muted-foreground"
-                  />
-                ) : (
-                  <Globe
-                    size={16}
-                    aria-label="Public"
-                    className="shrink-0 text-highlight"
-                  />
-                )}
-                <span className="flex-1 min-w-0 line-clamp-1 font-medium">
-                  {library.displayName ?? library.name}
-                </span>
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  {library.tracks} songs
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
   );
 }
 
@@ -149,9 +92,7 @@ function Explore() {
           </HeaderIcon>
           <div>
             <HeaderTitle>Explore</HeaderTitle>
-            <HeaderSubTitle>
-              Your libraries and ones shared by others
-            </HeaderSubTitle>
+            <HeaderSubTitle>Your & followed GitHub libraries</HeaderSubTitle>
           </div>
         </div>
       </PageHeader>
@@ -173,7 +114,7 @@ function Explore() {
                     id="library-address"
                     value={address}
                     onChange={(event) => setAddress(event.target.value)}
-                    placeholder="owner/repo, GitHub link or share link"
+                    placeholder="owner/repo or a link"
                     autoComplete="off"
                     spellCheck={false}
                   />
@@ -192,15 +133,14 @@ function Explore() {
                   </p>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  You can play a public library without signing in. Nothing is
-                  saved until you download it.
+                  Public libraries play without sign-in.
                 </p>
               </form>
 
               <h2 className="text-sm font-medium">Following</h2>
               {following.length === 0 ? (
                 <p className="text-muted-foreground">
-                  You are not following any library yet.
+                  Not following any library yet.
                 </p>
               ) : (
                 <ul className="flex flex-col gap-2">

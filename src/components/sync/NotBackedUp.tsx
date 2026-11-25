@@ -66,14 +66,12 @@ export default function NotBackedUp() {
             value={target ?? ""}
             onChange={(event) => setChosen(event.target.value)}
             disabled={!libraries?.length}
-            className="flex-1 min-w-0 px-2 py-1.5 rounded-md bg-accent text-sm font-mono"
+            className="flex-1 min-w-0 px-2 py-1.5 rounded-md bg-accent text-sm"
           >
             {!libraries && <option value="">Loading...</option>}
             {libraries?.map((library) => (
               <option key={library.name} value={library.name}>
-                {library.displayName
-                  ? `${library.displayName} (${library.name})`
-                  : library.name}
+                {library.displayName ?? library.name}
                 {library.isPrivate ? "" : " (public)"}
               </option>
             ))}

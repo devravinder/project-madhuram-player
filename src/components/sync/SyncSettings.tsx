@@ -6,7 +6,6 @@ import { authStore } from "@/services/github/authStore";
 import { CloudDownload, RefreshCcw, Square } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import NotBackedUp from "./NotBackedUp";
-import Libraries from "./Libraries";
 
 const STOP_TEXT = {
   offline: "Offline. Will sync when back online.",
@@ -37,7 +36,7 @@ function RepoNameForm({ taken }: { taken: string }) {
   return (
     <form onSubmit={submit} className="flex flex-col gap-2">
       <p role="alert" className="text-sm text-destructive">
-        {taken} already exists and is not a music library. Choose another name.
+        {taken} is used by another repo. Choose another name.
       </p>
       <label htmlFor="repo-name" className="text-sm font-medium">
         Library name
@@ -131,15 +130,14 @@ export default function SyncSettings() {
       </div>
 
       <p className="text-sm text-muted-foreground">
-        Sync gets songs from your other devices. New songs upload only from the
-        list below.
+        Sync gets songs from your other devices. Libraries are in Explore.
       </p>
 
       <NotBackedUp />
 
       {keptOnGithub > 0 && (
         <p className="text-sm text-muted-foreground">
-          {keptOnGithub} on GitHub only. Download to get{" "}
+          {keptOnGithub} only on GitHub. Download brings{" "}
           {keptOnGithub === 1 ? "it" : "them"} back.
         </p>
       )}
@@ -200,8 +198,6 @@ export default function SyncSettings() {
           </Button.Secondary>
         </div>
       )}
-
-      <Libraries />
     </SettingsSection>
   );
 }

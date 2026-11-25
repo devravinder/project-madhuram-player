@@ -50,7 +50,7 @@ test("plays a public library without login: streams small files, downloads split
 
   await page.goto("/#/explore");
   await page.getByRole("button", { name: "Unfollow tester/music-share" }).click();
-  await expect(page.getByText("You are not following any library yet.")).toBeVisible();
+  await expect(page.getByText("Not following any library yet.")).toBeVisible();
 });
 
 test("tells the listener when an address is not a public library", async ({ page, context }) => {
@@ -64,7 +64,7 @@ test("tells the listener when an address is not a public library", async ({ page
 
   await page.getByLabel("Library address").fill("someone/missing-library");
   await page.getByRole("button", { name: "Follow" }).click();
-  await expect(page.getByText(/No music library found at someone\/missing-library/)).toBeVisible();
+  await expect(page.getByText(/No library found at someone\/missing-library/)).toBeVisible();
 });
 
 test("a new device finds the user's private library in Explore and restores songs as themselves", async ({ page }) => {

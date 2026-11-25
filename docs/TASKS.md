@@ -89,3 +89,4 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 - [x] Download a song's file to the device, in its original format
 - [x] Rename a song (title, artist, album); renames sync without re-uploading the file
 - [x] Rename a library (a display name in its index; the repo name and links stay)
+- [x] Library actions only in Explore (⋮ menu, + to create, two-row cards); shorter messages; storage labels fit on phones; new Import icon

@@ -102,7 +102,7 @@ export class PublicLibrary {
     if (response.status === 404) {
       throw new PublicLibraryError(
         "not-found",
-        `No music library found at ${this.owner}/${this.repo}. It may be private or not exist.`,
+        `No library found at ${this.owner}/${this.repo}. It may be private.`,
       );
     }
     if (!response.ok) throw new HttpError(response.status, `GitHub returned ${response.status}.`);

@@ -159,7 +159,7 @@ function describe(error: unknown): string {
     return "Token rejected. Remove it in Settings and sign in again.";
   }
   if (error instanceof HttpError && error.status === 403) {
-    return "The token is not allowed to do this. It needs Administration (read and write).";
+    return "Not allowed. The token needs Administration (read and write).";
   }
   if (error instanceof Error) return error.message;
   return "Something went wrong.";
@@ -449,7 +449,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           if (replacing) setNameTaken(undefined);
         } catch (problem) {
           if (!(problem instanceof LibraryNameTakenError)) throw problem;
-          failure = `${name} already exists and is not a music library. Choose another name.`;
+          failure = `${name} is used by another repo. Choose another name.`;
         }
       });
       return failure;
@@ -521,7 +521,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           current.info = result.info;
           current.libraries = current.libraries.filter((l) => l.repo !== name);
           if (result.notDeleted.length > 0) {
-            failure = `Removed from your list, but GitHub did not delete ${result.notDeleted.join(", ")}. The token needs Administration (read and write), or delete it on GitHub.`;
+            failure = `GitHub did not delete ${result.notDeleted.join(", ")}. Delete it on GitHub.`;
           }
         } catch (problem) {
           if (!(problem instanceof LastLibraryError)) throw problem;

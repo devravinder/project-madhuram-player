@@ -14,9 +14,25 @@ const wipeDevice = (page: import("@playwright/test").Page) =>
     await Promise.all([db.songs.clear(), db.files.clear(), db.syncState.clear(), db.outbox.clear()]);
   });
 
-// The libraries list appears once Settings has connected.
+// Settings has connected once the upload picker lists the libraries.
 const librariesShown = (page: import("@playwright/test").Page) =>
-  expect(page.locator("li", { hasText: REPO }).first()).toBeVisible({ timeout: 15_000 });
+  expect(page.locator(`option[value="${REPO}"]`).first()).toBeAttached({ timeout: 15_000 });
+
+// Libraries are managed in Explore, from each card's More menu.
+const moreButton = (page: import("@playwright/test").Page, repo: string) =>
+  page.getByRole("button", { name: `More for ${repo}`, exact: true });
+const libraryMenu = async (page: import("@playwright/test").Page, repo: string, item: string) => {
+  await moreButton(page, repo).click();
+  await page.getByRole("menuitem", { name: item }).click();
+};
+const createLibrary = async (page: import("@playwright/test").Page, expected: string) => {
+  await page.goto("/#/explore");
+  await page.getByRole("button", { name: "New library" }).click();
+  const dialog = page.getByRole("dialog", { name: "New library" });
+  await expect(dialog.getByLabel("Repo name")).toHaveValue(expected); // the next free name
+  await dialog.getByRole("button", { name: "Create" }).click();
+  await expect(moreButton(page, expected)).toBeVisible({ timeout: 15_000 });
+};
 
 // New songs go to GitHub only from the "Not backed up" list in Settings.
 const uploadAll = async (page: import("@playwright/test").Page, count: number) => {
@@ -139,7 +155,7 @@ test("deletes a backed-up song from GitHub, or from this device only", async ({ 
   expect(await remoteTitles(page)).toEqual(["Kept"]);
 
   await openSettings(page);
-  await expect(page.getByText("1 on GitHub only.", { exact: false })).toBeVisible();
+  await expect(page.getByText("1 only on GitHub.", { exact: false })).toBeVisible();
   await page.getByRole("button", { name: "Sync", exact: true }).click();
   await expect(page.getByText("Up to date.")).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: "Download" }).click();
@@ -220,17 +236,11 @@ test("uploads into a chosen library and shares only that one", async ({ page, co
     { name: "Mine.wav", buffer: wavBuffer(2) },
     { name: "For Friends.wav", buffer: wavBuffer(2, 5) },
   ]);
-  await openSettings(page);
-  await librariesShown(page);
-  await expect(page.getByText("How do I share my music?")).toHaveCount(0); // replaced by the list
-
-  // A second library, with the next free name suggested.
-  await page.getByRole("button", { name: "Add library" }).click();
-  await expect(page.getByLabel("New library name")).toHaveValue(SHARED);
-  await page.getByRole("button", { name: "Create" }).click();
-  await expect(page.locator("li", { hasText: SHARED })).toBeVisible({ timeout: 15_000 });
+  await createLibrary(page, SHARED);
 
   // One song into each library.
+  await openSettings(page);
+  await librariesShown(page);
   await page.getByText("Not backed up (2)").click();
   await page.getByLabel("Library", { exact: true }).selectOption(SHARED);
   await page.getByRole("button", { name: "Upload For Friends" }).click();
@@ -246,20 +256,24 @@ test("uploads into a chosen library and shares only that one", async ({ page, co
   expect(await titlesIn(SHARED)).toEqual(["For Friends"]);
   expect(await titlesIn(REPO)).toEqual(["Mine"]);
 
-  // Share only the second library, after a clear warning.
-  await page.getByRole("button", { name: `Make ${SHARED} public` }).click();
+  // Share only the second library, after a short warning.
+  await page.goto("/#/explore");
+  await libraryMenu(page, SHARED, "Make public");
   const warning = page.locator("[data-sonner-toast]", { hasText: `Make ${SHARED} public?` });
   await expect(warning).toContainText("Anyone with the link");
   await warning.getByRole("button", { name: "Make public" }).click();
-  await expect(page.getByRole("button", { name: `Make ${SHARED} private`, exact: true })).toBeVisible({ timeout: 15_000 });
+  const card = page.locator("li", { has: moreButton(page, SHARED) });
+  await expect(card.getByLabel("Public")).toBeVisible({ timeout: 15_000 });
   const isPrivate = (repo: string) =>
     page.evaluate((r) => (window as any).__fake.repos.get(r).private, repo);
   expect(await isPrivate(SHARED)).toBe(false);
   expect(await isPrivate(REPO)).toBe(true);
   expect(await isPrivate("music-library-home")).toBe(true);
-  await expect(page.getByRole("button", { name: `Copy link to ${REPO}`, exact: true })).toHaveCount(0);
+  await moreButton(page, REPO).click();
+  await expect(page.getByRole("menuitem", { name: "Copy link" })).toHaveCount(0);
+  await page.keyboard.press("Escape");
 
-  await page.getByRole("button", { name: `Copy link to ${SHARED}` }).click();
+  await libraryMenu(page, SHARED, "Copy link");
   await expect(page.getByText("Link copied")).toBeVisible();
   const link = await page.evaluate(() => navigator.clipboard.readText());
   expect(link).toMatch(new RegExp(`#/explore/tester/${SHARED}$`));
@@ -316,30 +330,26 @@ test("renames a backed-up song, saves its file, and deletes a library", async ({
   ]);
   expect(download.suggestedFilename()).toBe("New Name.wav");
 
-  // Delete a library: the name is typed to confirm; the last one stays.
-  await openSettings(page);
-  await librariesShown(page);
-  await page.getByRole("button", { name: "Add library" }).click();
-  await page.getByRole("button", { name: "Create" }).click();
-  await expect(page.locator("li", { hasText: SECOND })).toBeVisible({ timeout: 15_000 });
-  await page.getByRole("button", { name: `Delete ${SECOND}`, exact: true }).click();
-  const confirm = page.getByRole("button", { name: "Delete library" });
-  await expect(confirm).toBeDisabled();
-  await page.getByLabel(`Type ${SECOND} to confirm`).fill(SECOND);
-  await confirm.click();
-  await expect(page.locator("li", { hasText: SECOND })).toHaveCount(0, { timeout: 15_000 });
+  // Delete a library: a short warning; the last one cannot be deleted.
+  await createLibrary(page, SECOND);
+  await libraryMenu(page, SECOND, "Delete");
+  const ask = page.getByRole("dialog", { name: `Delete ${SECOND}?` });
+  await expect(ask).toContainText("can't be undone");
+  await ask.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(moreButton(page, SECOND)).toHaveCount(0, { timeout: 15_000 });
   expect(await page.evaluate((r) => (window as any).__fake.repos.has(r), SECOND)).toBe(false);
   expect(await remoteTitles(page)).toEqual(["New Name"]);
-  await expect(page.getByRole("button", { name: `Delete ${REPO}`, exact: true })).toHaveCount(0);
 
   // Rename: only the shown name changes; the repo and its link stay.
-  await page.getByRole("button", { name: `Rename ${REPO}`, exact: true }).click();
-  await page.getByLabel(`Name shown for ${REPO}`).fill("Family Songs");
-  await page.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(page.locator("li", { hasText: "Family Songs" })).toBeVisible({ timeout: 15_000 });
+  await moreButton(page, REPO).click();
+  await expect(page.getByRole("menuitem", { name: "Delete" })).toHaveCount(0);
+  await page.getByRole("menuitem", { name: "Rename" }).click();
+  const rename = page.getByRole("dialog", { name: "Rename library" });
+  await rename.getByLabel("Name").fill("Family Songs");
+  await rename.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByRole("link", { name: "Family Songs" })).toBeVisible({ timeout: 15_000 });
   expect(await page.evaluate((r) => (window as any).__fake.repos.has(r), REPO)).toBe(true);
-  await page.goto("/#/explore");
-  await page.getByRole("link", { name: /Family Songs/ }).click();
+  await page.getByRole("link", { name: "Family Songs" }).click();
   await expect(page.getByText("Family Songs", { exact: true })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText(`${REPO} · 1 tracks`)).toBeVisible();
 });

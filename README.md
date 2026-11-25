@@ -14,14 +14,12 @@ installed like an app. It works offline, with no account and no server.
 
 1. Without sign-in: tap "Try without login", then Import songs or videos. They stay on this
    device and play offline. Explore lets you play public libraries by `owner/repo`.
-2. With sign-in: paste a GitHub token with repo access. In Settings, GitHub backup:
-   - Nothing uploads by itself. Open "Not backed up", pick a library, and upload one song
-     or all of them, leaving out large files if you like.
-   - Libraries: keep several (`music-library`, `-2`, ...). Make one public and use
-     "Copy link" to share it; the others stay private. Rename gives one a name of your own; Delete removes one from GitHub.
+2. With sign-in: paste a GitHub token with repo access.
+   - Settings, GitHub backup: Sync, Download, and "Not backed up" to upload one song or all.
+   - Explore, My libraries: + creates one; the ⋮ menu makes it public or private, copies
+     its share link, renames it or deletes it.
    - Song menu: Rename (reaches your other devices) and Download file (saves the original).
    - Sync brings in songs from your other devices; Download brings back removed ones.
-   - New device: Explore lists My libraries, to play or pick songs without fetching all.
    - Playlists sync by themselves to a private home repo. Removing the token keeps your music.
 
 ## For developers
