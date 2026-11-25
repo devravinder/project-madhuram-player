@@ -95,3 +95,4 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 - [x] Screen stays on while sync, upload or download runs (Screen Wake Lock; taken again when the app is back)
 - [x] Explore downloads keep their spinner and progress after leaving the page and coming back
 - [x] Uploads resume part by part after a reload, restart or lost connection; parts already on GitHub are not sent again
+- [x] Downloads resume part by part after a reload, restart or lost connection; Explore downloads wait for the connection instead of failing

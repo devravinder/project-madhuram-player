@@ -1,6 +1,7 @@
 import { Dexie, type EntityTable } from "dexie";
 import type {
   AppFile,
+  DownloadedPart,
   FollowedSource,
   OutboxItem,
   Playlist,
@@ -21,6 +22,7 @@ export const COLLECTIONS = {
   PLAYLIST_TOMBSTONES_COLLECTION: "playlistTombstones",
   FOLLOWED_SOURCES_COLLECTION: "followedSources",
   UPLOADED_PARTS_COLLECTION: "uploadedParts",
+  DOWNLOADED_PARTS_COLLECTION: "downloadedParts",
 } as const;
 
 class AppDB extends Dexie {
@@ -38,6 +40,7 @@ class AppDB extends Dexie {
     "address"
   >;
   [COLLECTIONS.UPLOADED_PARTS_COLLECTION]!: EntityTable<UploadedPart, "id">;
+  [COLLECTIONS.DOWNLOADED_PARTS_COLLECTION]!: EntityTable<DownloadedPart, "id">;
 
   constructor() {
     super(DB_NAME);
@@ -125,6 +128,11 @@ class AppDB extends Dexie {
     // Parts already on GitHub for uploads not finished yet.
     this.version(11).stores({
       [COLLECTIONS.UPLOADED_PARTS_COLLECTION]: "id,trackId",
+    });
+
+    // Parts already on the device for downloads not finished yet.
+    this.version(12).stores({
+      [COLLECTIONS.DOWNLOADED_PARTS_COLLECTION]: "id,fileSha256,savedAt",
     });
   }
 }

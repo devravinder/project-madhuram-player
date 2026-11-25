@@ -138,6 +138,17 @@ records and is sent in full. If GitHub has since removed a part nothing pointed 
 commit is refused (422); the records are dropped and the next try sends every part. The
 records go once the song is in the library.
 
+## Download resume
+
+Every download (Sync pulls, Download, Explore) reads parts through `fetchTrackFiles`. Each
+part of a split file is kept on the device (`downloadedParts`, by file hash and part number)
+as soon as it arrives. After a reload, a restart or a lost connection, the download skips
+the kept parts and fetches only the rest. Sync downloads carry on by themselves, like
+uploads; Explore downloads wait for the connection and carry on, and after a restart a tap
+on Download continues them. The whole-file hash is still checked; if it fails, the kept
+parts are dropped and all are fetched again. Kept parts go once the file is saved, or after
+a week if nobody finishes the download.
+
 ```mermaid
 sequenceDiagram
   participant O as Outbox

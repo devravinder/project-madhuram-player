@@ -61,4 +61,29 @@ describe("Explore downloads", () => {
     expect(pending.has("c")).toBe(false);
     expect(downloads.getDownloads().batches.size).toBe(0);
   });
+
+  it("wait out a lost connection and carry on, instead of failing", async () => {
+    vi.useFakeTimers();
+    try {
+      const { PublicLibraryError } = await import("./publicLibrary");
+      const download = downloads.downloadSong(song("a"));
+      await vi.advanceTimersByTimeAsync(0);
+      pending.get("a")!.reject(new PublicLibraryError("offline", "Cannot reach GitHub."));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(downloads.getDownloads().songs.has("a")).toBe(true); // still shown
+
+      await vi.advanceTimersByTimeAsync(6000); // the connection is back
+      pending.get("a")!.resolve("a");
+      await expect(download).resolves.toBe("a");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("fail at once for anything but a lost connection", async () => {
+    const download = downloads.downloadSong(song("a"));
+    await flush();
+    pending.get("a")!.reject(new Error("File not found"));
+    await expect(download).rejects.toThrow("File not found");
+  });
 });

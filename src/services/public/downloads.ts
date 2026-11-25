@@ -1,5 +1,7 @@
 import type { Song } from "@/types/music";
+import { NetworkError } from "@/services/httpError";
 import { holdScreen, withScreenOn } from "@/services/wakeLock";
+import { PublicLibraryError } from "./publicLibrary";
 import { downloadCopy } from "./remote";
 
 // Downloads from Explore outlive the page that started them, so leaving
@@ -35,11 +37,43 @@ export const getDownloads = () => snapshot;
 export const libraryKey = (song: Song) =>
   song.remote ? `${song.remote.owner}/${song.remote.repo}`.toLowerCase() : "";
 
+const MAX_OFFLINE_WAITS = 5;
+const RECHECK_MS = 5000;
+
+export const isOfflineError = (error: unknown) =>
+  error instanceof NetworkError ||
+  (error instanceof PublicLibraryError && error.reason === "offline");
+
+// Resolves when the connection is back (or soon, if the browser thinks
+// it is online and the network just blinked).
+function backOnline(): Promise<void> {
+  return new Promise((resolve) => {
+    if (typeof window === "undefined" || navigator.onLine) {
+      setTimeout(resolve, RECHECK_MS);
+      return;
+    }
+    window.addEventListener("online", () => resolve(), { once: true });
+  });
+}
+
+// A lost connection pauses the download instead of failing it; parts
+// already here are kept, so it carries on with the rest.
+async function untilSaved(song: Song): Promise<string> {
+  for (let waits = 0; ; waits++) {
+    try {
+      return await downloadCopy(song);
+    } catch (error) {
+      if (!isOfflineError(error) || waits >= MAX_OFFLINE_WAITS) throw error;
+      await backOnline();
+    }
+  }
+}
+
 // Saves one song; asking again while it downloads joins the same download.
 export function downloadSong(song: Song): Promise<string> {
   const existing = running.get(song.id);
   if (existing) return existing;
-  const download = withScreenOn(() => downloadCopy(song)).finally(() => {
+  const download = withScreenOn(() => untilSaved(song)).finally(() => {
     running.delete(song.id);
     notify();
   });

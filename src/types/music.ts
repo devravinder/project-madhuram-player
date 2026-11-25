@@ -113,3 +113,13 @@ export type UploadedPart = {
   bytes: number;
   sha: string; // the blob on GitHub
 };
+
+// A part of an unfinished download already on the device, so a resumed
+// download skips it. Removed once the whole file is saved.
+export type DownloadedPart = {
+  id: string; // `${fileSha256}:${n}`
+  fileSha256: string; // the whole file the part belongs to
+  n: number;
+  data: Blob;
+  savedAt: number;
+};
