@@ -50,17 +50,23 @@ function fakeBrowser() {
 }
 
 let browser: ReturnType<typeof fakeBrowser>;
-const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+const flush = () => vi.advanceTimersByTimeAsync(0);
+// Past the short delay before the lock is let go.
+const settle = () => vi.advanceTimersByTimeAsync(5000);
 const load = () => import("./wakeLock");
 
 beforeEach(() => {
+  vi.useFakeTimers();
   vi.resetModules();
   browser = fakeBrowser();
   vi.stubGlobal("document", browser.page);
   vi.stubGlobal("navigator", { wakeLock: browser.wakeLock });
 });
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 
 describe("keeping the screen on", () => {
   it("holds the screen during the work and lets go after", async () => {
@@ -71,10 +77,21 @@ describe("keeping the screen on", () => {
       await flush();
       during = isScreenHeld();
     });
-    await flush();
+    await settle();
 
     expect(during).toBe(true);
     expect(isScreenHeld()).toBe(false);
+    expect(browser.state.active).toBe(0);
+  });
+
+  it("keeps one lock for work that follows other work", async () => {
+    const { withScreenOn } = await load();
+    await withScreenOn(flush);
+    await flush();
+    await withScreenOn(flush);
+    expect(browser.state.requests).toBe(1);
+
+    await settle();
     expect(browser.state.active).toBe(0);
   });
 
@@ -91,7 +108,7 @@ describe("keeping the screen on", () => {
     expect(browser.state.active).toBe(1);
 
     second();
-    await flush();
+    await settle();
     expect(browser.state.active).toBe(0);
   });
 
@@ -110,6 +127,7 @@ describe("keeping the screen on", () => {
     expect(browser.state.requests).toBe(2);
 
     release();
+    await settle();
     browser.hide();
     browser.show();
     await flush();

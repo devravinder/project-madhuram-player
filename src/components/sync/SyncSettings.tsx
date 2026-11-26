@@ -4,13 +4,7 @@ import { useSync, type LastRun } from "@/context/SyncContext";
 import { useAuth } from "@/hooks/useAuth";
 import { authStore } from "@/services/github/authStore";
 import { CloudDownload, RefreshCcw, Square } from "lucide-react";
-import {
-  useEffect,
-  useState,
-  useSyncExternalStore,
-  type FormEvent,
-} from "react";
-import { isScreenHeld, subscribeScreenHeld } from "@/services/wakeLock";
+import { useEffect, useState, type FormEvent } from "react";
 import NotBackedUp from "./NotBackedUp";
 
 const STOP_TEXT = {
@@ -87,11 +81,6 @@ export default function SyncSettings() {
     keptOnGithub,
     loadLibraries,
   } = useSync();
-  const screenHeld = useSyncExternalStore(
-    subscribeScreenHeld,
-    isScreenHeld,
-    () => false,
-  );
 
   // Opening the screen connects, so the libraries can be shown.
   const signedIn = status === "signed-in";
@@ -159,7 +148,6 @@ export default function SyncSettings() {
         className="text-sm text-muted-foreground"
       >
         {statusText}
-        {busy && screenHeld && " Screen stays on."}
         {!busy && resumeAt && (
           <>
             {" "}

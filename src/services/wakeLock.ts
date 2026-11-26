@@ -1,7 +1,7 @@
-// Keeps the screen on while a sync, upload or download runs, so the phone
-// does not sleep and stop it. The browser lets go whenever the app leaves
-// the screen; it is taken again when the app is back, if still needed.
-// Without support (older browsers) everything works as before.
+// Keeps the screen on only while work runs: a sync, an upload, a download
+// or a GitHub call. Waiting (offline, paused) lets it go. The browser lets
+// go whenever the app leaves the screen; it is taken again when the app is
+// back, if still needed. Without support everything works as before.
 
 type Sentinel = {
   released: boolean;
@@ -10,10 +10,14 @@ type Sentinel = {
 };
 type WakeLockApi = { request(type: "screen"): Promise<Sentinel> };
 
+// Work that follows other work (the next song of a batch) keeps the same
+// lock instead of letting the screen go dark in between.
+export const RELEASE_DELAY_MS = 2000;
+
 let holders = 0;
 let sentinel: Sentinel | undefined;
 let requesting = false;
-const listeners = new Set<() => void>();
+let releaseTimer: ReturnType<typeof setTimeout> | undefined;
 
 const api = (): WakeLockApi | undefined =>
   typeof navigator !== "undefined"
@@ -22,8 +26,6 @@ const api = (): WakeLockApi | undefined =>
 
 const visible = () =>
   typeof document === "undefined" || document.visibilityState === "visible";
-
-const notify = () => listeners.forEach((listener) => listener());
 
 async function take() {
   const wakeLock = api();
@@ -39,9 +41,7 @@ async function take() {
     sentinel = taken;
     taken.addEventListener("release", () => {
       if (sentinel === taken) sentinel = undefined;
-      notify();
     });
-    notify();
   } catch {
     // Refused, for example in battery saver; the work goes on anyway.
   } finally {
@@ -53,7 +53,6 @@ async function letGo() {
   const held = sentinel;
   sentinel = undefined;
   if (held && !held.released) await held.release().catch(() => undefined);
-  notify();
 }
 
 let watching = false;
@@ -64,9 +63,10 @@ function watchVisibility() {
 }
 
 // Keeps the screen on until the returned function is called. Several
-// transfers can hold it at once; it goes off after the last one.
+// tasks can hold it at once; it goes off shortly after the last one.
 export function holdScreen(): () => void {
   watchVisibility();
+  clearTimeout(releaseTimer);
   holders++;
   void take();
   let done = false;
@@ -74,7 +74,11 @@ export function holdScreen(): () => void {
     if (done) return;
     done = true;
     holders--;
-    if (holders === 0) void letGo();
+    if (holders > 0) return;
+    clearTimeout(releaseTimer);
+    releaseTimer = setTimeout(() => {
+      if (holders === 0) void letGo();
+    }, RELEASE_DELAY_MS);
   };
 }
 
@@ -89,8 +93,3 @@ export async function withScreenOn<T>(work: () => Promise<T>): Promise<T> {
 }
 
 export const isScreenHeld = () => !!sentinel && !sentinel.released;
-
-export function subscribeScreenHeld(listener: () => void) {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-}

@@ -96,3 +96,7 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 - [x] Explore downloads keep their spinner and progress after leaving the page and coming back
 - [x] Uploads resume part by part after a reload, restart or lost connection; parts already on GitHub are not sent again
 - [x] Downloads resume part by part after a reload, restart or lost connection; Explore downloads wait for the connection instead of failing
+- [x] Clean up in Settings > Storage: removes unused files on the device and on GitHub (left a day first), fixes GitHub space used; runs once at a time, shows the last run
+- [x] Unfollowed libraries leave nothing in IndexedDB (removed at once signed out; after sync signed in)
+- [x] "Copy link" is now "Share" (share sheet, else copies the link)
+- [x] Screen stays on only while work runs (not while offline or waiting); no "Screen stays on" text

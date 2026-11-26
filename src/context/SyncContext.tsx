@@ -55,6 +55,10 @@ import {
   type SongNames,
 } from "@/services/songsService";
 import { syncSources } from "@/services/sync/sourcesSync";
+import { cleanDevice } from "@/services/cleanup/cleanDevice";
+import { cleanGithubLibrary } from "@/services/cleanup/cleanGithub";
+import { runCleanup } from "@/services/cleanup/cleanupStore";
+import { getDownloads } from "@/services/public/downloads";
 import type { OutboxItem } from "@/types/music";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
@@ -150,6 +154,7 @@ type SyncContextValue = {
     displayName: string,
   ) => Promise<string | undefined>;
   renameSong: (id: string, names: SongNames) => Promise<void>;
+  cleanUp: () => Promise<void>; // removes unused files here and on GitHub
 };
 
 const SyncContext = createContext<SyncContextValue | undefined>(undefined);
@@ -405,6 +410,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     async (action: (current: Session) => Promise<void>) => {
       if (!signedIn) return;
       setError(undefined);
+      const releaseScreen = holdScreen();
       try {
         const current = await openSession();
         await action(current);
@@ -412,6 +418,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       } catch (problem) {
         if (stopReasonOf(problem)?.reason === "offline") setError("Offline.");
         else report(problem);
+      } finally {
+        releaseScreen();
       }
     },
     [signedIn, openSession, refreshLibraries, report],
@@ -574,12 +582,49 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     [signedIn, resume],
   );
 
+  // Removes files nothing uses, on this device and, signed in, on GitHub.
+  // Runs on its own; Settings shows it running and when it last ran.
+  const cleanUp = useCallback(
+    () =>
+      runCleanup(
+        async () => {
+          const busy = running.current || getDownloads().songs.size > 0;
+          const device = await cleanDevice({ downloading: busy, signedIn });
+          if (!signedIn) {
+            return {
+              deviceBytes: device.bytes,
+              githubFiles: 0,
+              githubBytes: 0,
+              githubSkipped: true,
+            };
+          }
+          const current = await openSession();
+          await syncSources(current.home); // drops unfollows GitHub has
+          let githubFiles = 0;
+          let githubBytes = 0;
+          for (const library of current.libraries) {
+            const result = await cleanGithubLibrary(library);
+            githubFiles += result.files;
+            githubBytes += result.bytes;
+          }
+          await refreshLibraries(current);
+          return { deviceBytes: device.bytes, githubFiles, githubBytes };
+        },
+        (problem) =>
+          stopReasonOf(problem)?.reason === "offline"
+            ? "Offline. Try again when online."
+            : describe(problem),
+      ),
+    [signedIn, openSession, refreshLibraries],
+  );
+
   // Playlists and followed libraries follow the user without asking,
   // a moment after each change. They live in the private home repo.
   useEffect(() => {
     if (!signedIn || playlists === undefined || sources === undefined) return;
     const timer = setTimeout(async () => {
       if (running.current) return;
+      const releaseScreen = holdScreen();
       try {
         const { home } = await openSession();
         await syncPlaylists(home);
@@ -587,6 +632,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       } catch (problem) {
         // Background work stays quiet when offline or limited; Sync shows it.
         if (!stopReasonOf(problem)) report(problem);
+      } finally {
+        releaseScreen();
       }
     }, PLAYLIST_SYNC_DELAY_MS);
     return () => clearTimeout(timer);
@@ -673,6 +720,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         deleteLibrary,
         renameLibrary,
         renameSong,
+        cleanUp,
       }}
     >
       {children}

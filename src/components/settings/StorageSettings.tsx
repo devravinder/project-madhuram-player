@@ -1,5 +1,6 @@
 import { Button } from "@/components/Elements";
 import SettingsSection from "./SettingsSection";
+import Cleanup from "./Cleanup";
 import { useSync } from "@/context/SyncContext";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -126,6 +127,8 @@ export default function StorageSettings() {
             Sync once to see GitHub space.
           </p>
         ))}
+
+      <Cleanup />
     </SettingsSection>
   );
 }

@@ -208,6 +208,36 @@ export class GithubApi {
     return ((await response.json()) as { tree: TreeEntry[] }).tree;
   }
 
+  // Every file of a known tree. `truncated` means GitHub left some out.
+  async getAllFiles(owner: string, repo: string, treeSha: string) {
+    const response = await this.request(
+      `/repos/${owner}/${repo}/git/trees/${treeSha}?recursive=1`,
+    );
+    const body = (await response.json()) as {
+      tree: TreeEntry[];
+      truncated?: boolean;
+    };
+    return {
+      files: body.tree.filter((entry) => entry.type === "blob"),
+      truncated: !!body.truncated,
+    };
+  }
+
+  // When a path was last changed on the default branch; undefined if never.
+  async lastChanged(
+    owner: string,
+    repo: string,
+    path: string,
+  ): Promise<Date | undefined> {
+    const response = await this.request(
+      `/repos/${owner}/${repo}/commits?path=${encodeURIComponent(path)}&per_page=1`,
+    );
+    const [latest] = (await response.json()) as {
+      commit: { committer: { date: string } };
+    }[];
+    return latest ? new Date(latest.commit.committer.date) : undefined;
+  }
+
   // Reads a file from a known tree by walking its folders. Tree and blob
   // ids never change, so this sees exactly that commit and returns null
   // for a missing file without a 404 round trip.

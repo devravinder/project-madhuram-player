@@ -270,10 +270,25 @@ test("uploads into a chosen library and shares only that one", async ({ page, co
   expect(await isPrivate(REPO)).toBe(true);
   expect(await isPrivate("music-library-home")).toBe(true);
   await moreButton(page, REPO).click();
-  await expect(page.getByRole("menuitem", { name: "Copy link" })).toHaveCount(0);
+  await expect(page.getByRole("menuitem", { name: "Share" })).toHaveCount(0);
   await page.keyboard.press("Escape");
 
-  await libraryMenu(page, SHARED, "Copy link");
+  // With a share sheet, the link goes to it.
+  await page.evaluate(() => {
+    (navigator as any).share = async (data: ShareData) => {
+      (window as any).__shared = data.url;
+    };
+  });
+  await libraryMenu(page, SHARED, "Share");
+  await expect
+    .poll(() => page.evaluate(() => (window as any).__shared))
+    .toMatch(new RegExp(`#/explore/tester/${SHARED}$`));
+
+  // Without one, it is copied.
+  await page.evaluate(() => {
+    (navigator as any).share = undefined;
+  });
+  await libraryMenu(page, SHARED, "Share");
   await expect(page.getByText("Link copied")).toBeVisible();
   const link = await page.evaluate(() => navigator.clipboard.readText());
   expect(link).toMatch(new RegExp(`#/explore/tester/${SHARED}$`));
@@ -358,7 +373,7 @@ test("keeps the screen on while a transfer runs, and lets go after", async ({ pa
   const { tryWithoutLogin } = await import("./fixtures");
   await tryWithoutLogin(page);
   const result = await page.evaluate(async () => {
-    const { withScreenOn, isScreenHeld } = await import(/* @vite-ignore */ "/src/services/wakeLock.ts");
+    const { withScreenOn, isScreenHeld, RELEASE_DELAY_MS } = await import(/* @vite-ignore */ "/src/services/wakeLock.ts");
     if (!("wakeLock" in navigator)) return { supported: false, during: false, after: false };
     let during = false;
     await withScreenOn(async () => {
@@ -367,7 +382,7 @@ test("keeps the screen on while a transfer runs, and lets go after", async ({ pa
         during = isScreenHeld();
       }
     });
-    await new Promise((r) => setTimeout(r, 50));
+    await new Promise((r) => setTimeout(r, RELEASE_DELAY_MS + 200));
     return { supported: true, during, after: isScreenHeld() };
   });
   expect(result).toEqual({ supported: true, during: true, after: false });

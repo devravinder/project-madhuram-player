@@ -1,6 +1,6 @@
 import type { Song } from "@/types/music";
 import { NetworkError } from "@/services/httpError";
-import { holdScreen, withScreenOn } from "@/services/wakeLock";
+import { withScreenOn } from "@/services/wakeLock";
 import { PublicLibraryError } from "./publicLibrary";
 import { downloadCopy } from "./remote";
 
@@ -57,11 +57,12 @@ function backOnline(): Promise<void> {
 }
 
 // A lost connection pauses the download instead of failing it; parts
-// already here are kept, so it carries on with the rest.
+// already here are kept, so it carries on with the rest. The screen is
+// kept on while it downloads, not while it waits.
 async function untilSaved(song: Song): Promise<string> {
   for (let waits = 0; ; waits++) {
     try {
-      return await downloadCopy(song);
+      return await withScreenOn(() => downloadCopy(song));
     } catch (error) {
       if (!isOfflineError(error) || waits >= MAX_OFFLINE_WAITS) throw error;
       await backOnline();
@@ -73,7 +74,7 @@ async function untilSaved(song: Song): Promise<string> {
 export function downloadSong(song: Song): Promise<string> {
   const existing = running.get(song.id);
   if (existing) return existing;
-  const download = withScreenOn(() => untilSaved(song)).finally(() => {
+  const download = untilSaved(song).finally(() => {
     running.delete(song.id);
     notify();
   });
@@ -89,7 +90,6 @@ export async function downloadAll(key: string, songs: Song[]): Promise<BatchResu
   const batch = { done: 0, total: songs.length, stop: false };
   batches.set(key, batch);
   notify();
-  const releaseScreen = holdScreen();
   let saved = 0;
   let failed = 0;
   try {
@@ -105,7 +105,6 @@ export async function downloadAll(key: string, songs: Song[]): Promise<BatchResu
       notify();
     }
   } finally {
-    releaseScreen();
     batches.delete(key);
     notify();
   }

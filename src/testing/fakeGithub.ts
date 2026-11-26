@@ -9,7 +9,7 @@ type FakeRepo = {
   private: boolean;
   blobs: Map<string, Uint8Array>;
   trees: Map<string, Snapshot>;
-  commits: Map<string, { tree: string; parents: string[] }>;
+  commits: Map<string, { tree: string; parents: string[]; date?: string }>;
   branches: Map<string, string>; // branch -> commit id
 };
 
@@ -50,6 +50,7 @@ export class FakeGithub {
   private refLag = 0;
   private beforeRefUpdate?: () => Promise<void>;
   private counter = 0;
+  private clock?: Date;
   // Folder ids from tree listings, so nested trees can be fetched.
   private readonly folders = new Map<
     string,
@@ -80,6 +81,11 @@ export class FakeGithub {
   // Runs once, right before the next branch update, to simulate another device.
   onNextRefUpdate(callback: () => Promise<void>) {
     this.beforeRefUpdate = callback;
+  }
+
+  // Commits made from now on carry this time.
+  setClock(at: Date) {
+    this.clock = at;
   }
 
   async seedRepo(name: string, files: Files, isPrivate = true) {
@@ -206,7 +212,12 @@ export class FakeGithub {
       );
     }
     if (method === "GET" && rest.startsWith("/git/trees/")) {
-      return this.rootTree(repo, decodeURIComponent(rest.slice(11)));
+      const ref = decodeURIComponent(rest.slice(11));
+      if (url.searchParams.get("recursive")) return this.allFiles(repo, ref);
+      return this.rootTree(repo, ref);
+    }
+    if (method === "GET" && rest === "/commits") {
+      return this.commitsFor(repo, url.searchParams.get("path") ?? "");
     }
     if (method === "GET" && rest.startsWith("/git/ref/heads/")) {
       if (this.refLag > 0) {
@@ -240,6 +251,47 @@ export class FakeGithub {
   }
 
   // ---- handlers -------------------------------------------------------
+
+  private allFiles(repo: FakeRepo, treeSha: string) {
+    const snapshot = repo.trees.get(treeSha);
+    if (!snapshot) return failure(404, "Not Found");
+    const tree = Object.entries(snapshot).map(([path, sha]) => ({
+      path,
+      type: "blob",
+      sha,
+      size: repo.blobs.get(sha)?.length,
+    }));
+    return json({ sha: treeSha, tree, truncated: false });
+  }
+
+  // The newest commit on the branch that changed something under `path`.
+  private commitsFor(repo: FakeRepo, path: string) {
+    const under = (snapshot: Snapshot) =>
+      JSON.stringify(
+        Object.entries(snapshot)
+          .filter(([p]) => p === path || p.startsWith(`${path}/`))
+          .sort(),
+      );
+    let id = repo.branches.get(BRANCH);
+    while (id) {
+      const commit = repo.commits.get(id)!;
+      const parent = commit.parents[0];
+      const before = parent
+        ? repo.trees.get(repo.commits.get(parent)!.tree)!
+        : {};
+      if (under(repo.trees.get(commit.tree)!) !== under(before)) {
+        return json([
+          { sha: id, commit: { committer: { date: commit.date } } },
+        ]);
+      }
+      id = parent;
+    }
+    return json([]);
+  }
+
+  private date() {
+    return (this.clock ?? new Date()).toISOString();
+  }
 
   // raw.githubusercontent.com: no sign-in, public repos only.
   private raw(url: URL) {
@@ -407,7 +459,11 @@ export class FakeGithub {
     const sha = await sha1Hex(
       `commit ${++this.counter} ${JSON.stringify(body)}`,
     );
-    repo.commits.set(sha, { tree: body.tree, parents: body.parents });
+    repo.commits.set(sha, {
+      tree: body.tree,
+      parents: body.parents,
+      date: this.date(),
+    });
     return json({ sha }, 201);
   }
 
@@ -481,7 +537,11 @@ export class FakeGithub {
     repo.trees.set(tree, snapshot);
     const parent = repo.branches.get(BRANCH);
     const commit = await sha1Hex(`commit ${++this.counter} ${message}`);
-    repo.commits.set(commit, { tree, parents: parent ? [parent] : [] });
+    repo.commits.set(commit, {
+      tree,
+      parents: parent ? [parent] : [],
+      date: this.date(),
+    });
     repo.branches.set(BRANCH, commit);
   }
 }
