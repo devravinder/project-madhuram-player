@@ -164,7 +164,11 @@ function Explore() {
                         </Link>
                         <IconButton
                           aria-label={`Unfollow ${source.address}`}
-                          onClick={() => void unfollowSource(source.address)}
+                          onClick={() =>
+                            void unfollowSource(source.address, {
+                              keepForSync: signedIn,
+                            })
+                          }
                         >
                           <X className="h-5 w-5" />
                         </IconButton>

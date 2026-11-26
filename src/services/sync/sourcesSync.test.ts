@@ -20,7 +20,9 @@ const NEW = "2026-02-01T00:00:00.000Z";
 describe("normalizeAddress", () => {
   it("stores one spelling for the same library", () => {
     expect(normalizeAddress("Alice/Music")).toBe("alice/music");
-    expect(normalizeAddress("https://github.com/Alice/Music.git")).toBe("alice/music");
+    expect(normalizeAddress("https://github.com/Alice/Music.git")).toBe(
+      "alice/music",
+    );
   });
 
   it("rejects what is not an address", () => {
@@ -30,7 +32,10 @@ describe("normalizeAddress", () => {
 
 describe("mergeSources", () => {
   it("adds sources the other side lacks", () => {
-    const r = mergeSources([{ address: "a/x", updatedAt: OLD }], [{ address: "b/y", updatedAt: OLD }]);
+    const r = mergeSources(
+      [{ address: "a/x", updatedAt: OLD }],
+      [{ address: "b/y", updatedAt: OLD }],
+    );
     expect(r.remote.map((s) => s.address)).toEqual(["a/x", "b/y"]);
     expect(r.upsert.map((s) => s.address)).toEqual(["b/y"]);
     expect(r.remoteChanged).toBe(true);
@@ -56,7 +61,10 @@ describe("mergeSources", () => {
 
   it("changes nothing when both sides agree", () => {
     const same = [{ address: "a/x", updatedAt: OLD }];
-    expect(mergeSources(same, same)).toMatchObject({ upsert: [], remoteChanged: false });
+    expect(mergeSources(same, same)).toMatchObject({
+      upsert: [],
+      remoteChanged: false,
+    });
   });
 });
 
@@ -68,7 +76,13 @@ describe("syncSources", () => {
     await db.followedSources.clear();
     fake = new FakeGithub();
     const api = new GithubApi(fake.token, fake.fetch);
-    const found = await findOrCreateLibrary(api, fake.login, "lib", { maxFileBytes: 100, maxRepoBytes: 1000 }, async () => {});
+    const found = await findOrCreateLibrary(
+      api,
+      fake.login,
+      "lib",
+      { maxFileBytes: 100, maxRepoBytes: 1000 },
+      async () => {},
+    );
     if (found.status === "name-taken") throw new Error("unexpected");
     library = new LibraryRepo(api, fake.login, "lib", found.branch);
   });
@@ -82,7 +96,9 @@ describe("syncSources", () => {
 
     await db.followedSources.clear(); // a new device
     await syncSources(library);
-    expect((await listSources()).map((s) => s.address)).toEqual(["alice/music"]);
+    expect((await listSources()).map((s) => s.address)).toEqual([
+      "alice/music",
+    ]);
   });
 
   it("carries an unfollow to the other device", async () => {
@@ -90,7 +106,7 @@ describe("syncSources", () => {
     await syncSources(library);
     const deviceA = await db.followedSources.toArray();
 
-    await unfollowSource("alice/music"); // device B
+    await unfollowSource("alice/music", { keepForSync: true }); // device B
     await syncSources(library);
 
     await db.followedSources.clear(); // back on device A
@@ -114,7 +130,42 @@ describe("syncSources", () => {
   it("lists only sources that are still followed", async () => {
     await followSource("a/x");
     await followSource("b/y");
-    await unfollowSource("a/x");
+    await unfollowSource("a/x", { keepForSync: true });
     expect((await listSources()).map((s) => s.address)).toEqual(["b/y"]);
+  });
+
+  it("forgets an unfollow on this device once GitHub has it", async () => {
+    await followSource("alice/music");
+    await syncSources(library);
+
+    await unfollowSource("alice/music", { keepForSync: true });
+    await syncSources(library);
+
+    expect(await db.followedSources.count()).toBe(0);
+    expect(remote()[0]).toMatchObject({
+      address: "alice/music",
+      removed: true,
+    });
+    await syncSources(library); // and it does not come back
+    expect(await db.followedSources.count()).toBe(0);
+  });
+
+  it("removes a library unfollowed on another device", async () => {
+    await followSource("alice/music");
+    await syncSources(library);
+    const deviceA = await db.followedSources.toArray();
+    await unfollowSource("alice/music", { keepForSync: true }); // device B
+    await syncSources(library);
+
+    await db.followedSources.bulkPut(deviceA); // back on device A
+    await syncSources(library);
+
+    expect(await db.followedSources.count()).toBe(0);
+  });
+
+  it("removes an unfollow at once when not signed in", async () => {
+    await followSource("a/x");
+    await unfollowSource("a/x");
+    expect(await db.followedSources.count()).toBe(0);
   });
 });

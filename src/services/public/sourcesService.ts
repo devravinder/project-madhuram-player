@@ -23,7 +23,12 @@ export async function followSource(input: string) {
   return address;
 }
 
-// Kept as a marked record, so the unfollow reaches the other devices too.
-export async function unfollowSource(address: string) {
+// Signed in, it is kept as a marked record until sync has told the other
+// devices; otherwise it is simply removed.
+export async function unfollowSource(address: string, { keepForSync = false } = {}) {
+  if (!keepForSync) {
+    await db.followedSources.delete(address);
+    return;
+  }
   await db.followedSources.put({ address, updatedAt: new Date(), removed: true });
 }
