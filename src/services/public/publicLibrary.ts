@@ -86,7 +86,9 @@ export class PublicLibrary {
       async () => {
         try {
           return await this.fetchFn(url, init);
-        } catch {
+        } catch (error) {
+          // Stopped on purpose: not a lost connection, so no retry.
+          if (init?.signal?.aborted) throw error;
           throw new PublicLibraryError("offline", "Cannot reach GitHub. Check your connection.");
         }
       },
@@ -147,8 +149,8 @@ export class PublicLibrary {
     return [...file.parts].sort((a, b) => a.n - b.n).map((part) => ({ url: this.partUrl(part), bytes: part.bytes }));
   }
 
-  readPart = async (part: PartRef): Promise<Blob> => {
-    const response = await this.get(this.partUrl(part));
+  readPart = async (part: PartRef, signal?: AbortSignal): Promise<Blob> => {
+    const response = await this.get(this.partUrl(part), { signal });
     if (response.status === 404) throw new TrackFileMissingError();
     if (!response.ok) throw new HttpError(response.status, `GitHub returned ${response.status}.`);
     return response.blob();

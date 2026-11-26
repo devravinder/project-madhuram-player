@@ -79,9 +79,9 @@ export class OwnLibrary {
       .map((part) => ({ url: rawUrl(this.owner, part.repo, part.path), bytes: part.bytes }));
   }
 
-  readPart = async (part: PartRef): Promise<Blob> => {
+  readPart = async (part: PartRef, signal?: AbortSignal): Promise<Blob> => {
     try {
-      return await this.api.readBlob(this.owner, part.repo, part.sha);
+      return await this.api.readBlob(this.owner, part.repo, part.sha, signal);
     } catch (error) {
       if (error instanceof HttpError && error.status === 404) throw new TrackFileMissingError();
       throw error;

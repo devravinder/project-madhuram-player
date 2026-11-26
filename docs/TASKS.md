@@ -102,3 +102,4 @@ Legend: `[x]` done, `[~]` partial, `[ ]` not started.
 - [x] Screen stays on only while work runs (not while offline or waiting); no "Screen stays on" text
 - [x] Clean up also removes songs whose file is gone (backed-up ones stay on GitHub for Download), forgets unfollows older than 90 days on GitHub, adopts lost overflow repos, and lists music repos no library uses (with links to delete them on GitHub)
 - [x] Clean up deletes leftover repos on GitHub after a confirmation (asked when found; also Delete per repo or Delete all in the list)
+- [x] Playing another song stops the previous song's download (parts kept, so it resumes); the service worker stops its GitHub request when the player drops it

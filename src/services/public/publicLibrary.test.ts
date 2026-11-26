@@ -151,3 +151,30 @@ describe("PublicLibrary", () => {
     expect(fake.requests.every((r) => r.includes("raw:"))).toBe(true);
   });
 });
+
+describe("a part download stopped on purpose", () => {
+  it("is not taken for a lost connection, so it is not retried", async () => {
+    let calls = 0;
+    const fetchFn = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      calls++;
+      init?.signal?.throwIfAborted();
+      return new Response("x");
+    }) as typeof fetch;
+    const hidden = {
+      isHidden: () => true,
+      hiddenTimes: () => 1,
+      waitUntilVisible: async () => {},
+    };
+    const lib = new PublicLibrary({ owner: "a", repo: "b" }, fetchFn, { visibility: hidden, sleep: noSleep });
+    const stop = new AbortController();
+    stop.abort();
+
+    const error = await lib
+      .readPart({ n: 0, repo: "b", path: "data/p", bytes: 1, sha: "s" }, stop.signal)
+      .catch((e) => e);
+
+    expect(error).not.toBeInstanceOf(PublicLibraryError);
+    expect((error as Error).name).toBe("AbortError");
+    expect(calls).toBe(1);
+  });
+});

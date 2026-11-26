@@ -69,6 +69,7 @@ const libraryOf = (song: Song) => {
 export async function resolveRemote(
   song: Song,
   onDownloadStart?: () => void,
+  signal?: AbortSignal,
 ): Promise<PlayableRemote> {
   const library = libraryOf(song);
   const manifest = await library.loadManifest(song.remote!.manifest);
@@ -97,7 +98,9 @@ export async function resolveRemote(
   }
 
   onDownloadStart?.();
-  const files = await fetchTrackFiles(manifest, library.readPart);
+  // Stopped when another song is played; parts already here are kept,
+  // so playing this one again carries on.
+  const files = await fetchTrackFiles(manifest, library.readPart, undefined, signal);
   return { mode: "download", file: files.media, coverUrl, cover: coverUrl ? undefined : files.cover };
 }
 

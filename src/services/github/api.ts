@@ -30,7 +30,12 @@ export type RepoFile = { sha: string; text: string };
 
 type FetchFn = typeof fetch;
 
-type Options = { method?: string; body?: unknown; accept?: string };
+type Options = {
+  method?: string;
+  body?: unknown;
+  accept?: string;
+  signal?: AbortSignal; // stops the request; not retried
+};
 
 const encodePath = (path: string) =>
   path.split("/").map(encodeURIComponent).join("/");
@@ -113,8 +118,11 @@ export class GithubApi {
         },
         body:
           options.body === undefined ? undefined : JSON.stringify(options.body),
+        signal: options.signal,
       });
-    } catch {
+    } catch (error) {
+      // Stopped on purpose: not a lost connection, so no retry.
+      if (options.signal?.aborted) throw error;
       throw new NetworkError();
     }
   }
@@ -356,10 +364,15 @@ export class GithubApi {
       body: { message, content: textToBase64(text) },
     });
   }
-  async readBlob(owner: string, repo: string, sha: string): Promise<Blob> {
+  async readBlob(
+    owner: string,
+    repo: string,
+    sha: string,
+    signal?: AbortSignal,
+  ): Promise<Blob> {
     const response = await this.request(
       `/repos/${owner}/${repo}/git/blobs/${sha}`,
-      { accept: "application/vnd.github.raw+json" },
+      { accept: "application/vnd.github.raw+json", signal },
     );
     return response.blob();
   }

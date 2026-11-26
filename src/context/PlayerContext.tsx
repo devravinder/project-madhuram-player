@@ -9,7 +9,10 @@ import React, {
   useState,
 } from "react";
 import { usePlaylists } from "./PlaylistContext";
-import { playbackErrorMessage, resolveSource } from "@/services/playback/source";
+import {
+  playbackErrorMessage,
+  resolveSource,
+} from "@/services/playback/source";
 import { mediaElement } from "@/services/mediaElement";
 import { IMAGE_512, UNKNOWN } from "@/constants";
 import { toast } from "sonner";
@@ -89,6 +92,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const loadRequestRef = useRef(0);
+  // Stops the download of a song that is no longer wanted.
+  const loadAbortRef = useRef<AbortController>(undefined);
   const objectUrlsRef = useRef<string[]>([]);
 
   const revokeObjectUrls = useCallback(() => {
@@ -98,6 +103,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const cancelPendingLoad = useCallback(() => {
     loadRequestRef.current++;
+    loadAbortRef.current?.abort();
   }, []);
 
   const loadAndPlay = useCallback(
@@ -105,19 +111,28 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       const audio = mediaRef.current;
       if (!audio) return;
 
-      // Only the latest request may start playback.
+      // Only the latest request may start playback; an earlier one still
+      // downloading stops (its parts stay, so it resumes if played again).
       const request = ++loadRequestRef.current;
+      loadAbortRef.current?.abort();
+      const loading = new AbortController();
+      loadAbortRef.current = loading;
       setCurrentSong(song);
 
       let source;
       try {
         source = await resolveSource(song, {
-          onDownloadStart: () =>
-            toast.loading(`Downloading ${song.title}...`, { id: DOWNLOAD_TOAST }),
+          signal: loading.signal,
+          onDownloadStart: () => {
+            if (request === loadRequestRef.current)
+              toast.loading(`Downloading ${song.title}...`, {
+                id: DOWNLOAD_TOAST,
+              });
+          },
         });
       } catch (error) {
-        toast.dismiss(DOWNLOAD_TOAST);
         if (request === loadRequestRef.current) {
+          toast.dismiss(DOWNLOAD_TOAST);
           // The old track must not keep playing under the new title.
           audio.pause();
           setIsPlaying(false);
@@ -125,12 +140,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         }
         return;
       }
-      toast.dismiss(DOWNLOAD_TOAST);
 
       if (request !== loadRequestRef.current) {
         source?.objectUrls.forEach((url) => URL.revokeObjectURL(url));
         return;
       }
+      toast.dismiss(DOWNLOAD_TOAST);
       if (!source) {
         audio.pause();
         setIsPlaying(false);
@@ -225,7 +240,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
     // A streamed file that was removed fails here, after play() has started.
     const handleError = () => {
-      if (!audio.error || audio.error.code === MediaError.MEDIA_ERR_ABORTED) return;
+      if (!audio.error || audio.error.code === MediaError.MEDIA_ERR_ABORTED)
+        return;
       setIsPlaying(false);
       toast.error("Unable to play. The file may be missing or not supported.");
     };

@@ -97,6 +97,24 @@ describe("serveStream", () => {
     expect(await playThrough(link(), rangeServer(false))).toEqual(bytes);
   });
 
+  it("stops fetching from GitHub when the player drops the request", async () => {
+    const fetchFn = vi.fn(rangeServer());
+    const player = new AbortController();
+    const url = link();
+    await serveStream(
+      new Request(url, {
+        headers: { Range: "bytes=0-" },
+        signal: player.signal,
+      }),
+      url,
+      fetchFn,
+    );
+    const upstream = fetchFn.mock.calls[0][1]?.signal;
+    expect(upstream?.aborted).toBe(false);
+    player.abort();
+    expect(upstream?.aborted).toBe(true);
+  });
+
   it("says when a range or link cannot be served", async () => {
     expect((await ask("bytes=300-", rangeServer())).status).toBe(416);
     const bad = new URL("http://app.test/__stream?d=nope");

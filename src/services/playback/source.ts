@@ -32,7 +32,10 @@ async function fromDevice(song: Song): Promise<PlaybackSource | undefined> {
   };
 }
 
-export type ResolveHooks = { onDownloadStart?: () => void };
+export type ResolveHooks = {
+  onDownloadStart?: () => void;
+  signal?: AbortSignal; // stops a download the player no longer needs
+};
 
 // Undefined means a local file is missing. Remote problems are thrown.
 export async function resolveSource(
@@ -46,7 +49,11 @@ export async function resolveSource(
   const local = copy && (await fromDevice(copy));
   if (local) return local;
 
-  const playable = await resolveRemote(song, hooks.onDownloadStart);
+  const playable = await resolveRemote(
+    song,
+    hooks.onDownloadStart,
+    hooks.signal,
+  );
   // A private library's cover comes as a file, not a URL.
   const coverUrl = playable.cover
     ? URL.createObjectURL(playable.cover)

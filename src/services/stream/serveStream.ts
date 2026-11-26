@@ -26,6 +26,9 @@ export async function serveStream(
   try {
     upstream = await fetchFn(description.parts[piece.part].url, {
       headers: { Range: `bytes=${piece.from}-${piece.to}` },
+      // The player dropping this request (another song, a seek) stops the
+      // download from GitHub too.
+      signal: request.signal,
     });
   } catch {
     return new Response(null, { status: 504 }); // offline

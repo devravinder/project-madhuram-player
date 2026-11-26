@@ -122,3 +122,37 @@ test("a download keeps its spinner after leaving the page and coming back", asyn
   await expect(page.getByRole("button", { name: "Downloading Slow Song" })).toBeVisible();
   await expect(page.getByRole("img", { name: "Saved on this device" })).toBeVisible({ timeout: 20_000 });
 });
+
+test("playing another song stops the download of the one before, and it resumes later", async ({ page, context }) => {
+  const raw = await routeRawToFake(context, page);
+  await tryWithoutLogin(page);
+  await seedPublicLibrary(page, "long-share", [
+    { id: "long1", title: "Long Song", seconds: 48 }, // four parts
+    { id: "short1", title: "Short Song", seconds: 8 },
+  ]);
+  await page.goto("/#/explore");
+  await page.getByLabel("Library address").fill("tester/long-share");
+  await page.getByRole("button", { name: "Follow" }).click();
+  await expect(page.getByText("2 tracks")).toBeVisible();
+
+  const longParts: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().includes("/long1/")) longParts.push(request.url());
+  });
+
+  raw.delayMs = 1500; // each part takes a while
+  await songRow(page, "Long Song").click();
+  await expect(page.getByText("Downloading Long Song...")).toBeVisible();
+  await expect.poll(() => longParts.length).toBe(1);
+
+  raw.delayMs = 0;
+  await songRow(page, "Short Song").click();
+  await expectPlaying(page, /^https:\/\/raw\.githubusercontent\.com\/.+short1/);
+  await page.waitForTimeout(3000);
+  expect(longParts).toHaveLength(1); // no part fetched after the switch
+  await expect(page.getByText(/Unable to play/)).toHaveCount(0);
+
+  // Played again, it carries on and plays.
+  await songRow(page, "Long Song").click();
+  await expectPlaying(page, /^blob:/);
+});

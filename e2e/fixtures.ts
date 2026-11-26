@@ -120,8 +120,11 @@ export async function routeRawToFake(context: BrowserContext, page: Page) {
       },
       [repo, path],
     );
-    if (!base64) return route.fulfill({ status: 404, body: "404: Not Found" });
-    return route.fulfill({
+    // The page may have stopped the request meanwhile (another song).
+    const answer = (reply: Parameters<typeof route.fulfill>[0]) =>
+      route.fulfill(reply).catch(() => undefined);
+    if (!base64) return answer({ status: 404, body: "404: Not Found" });
+    return answer({
       status: 200,
       headers: { "access-control-allow-origin": "*" },
       body: Buffer.from(base64, "base64"),

@@ -10,7 +10,17 @@ export class IntegrityError extends Error {
   }
 }
 
-export type ReadPart = (part: FileRef["parts"][number]) => Promise<Blob>;
+export type ReadPart = (
+  part: FileRef["parts"][number],
+  signal?: AbortSignal,
+) => Promise<Blob>;
+
+// Thrown when the one who asked for the download no longer needs it.
+export const stoppedError = () =>
+  new DOMException("Download stopped", "AbortError");
+
+export const isStopped = (error: unknown) =>
+  error instanceof DOMException && error.name === "AbortError";
 
 // Parts of a download nobody finished are dropped after a week.
 const KEEP_UNFINISHED_MS = 7 * 24 * 60 * 60 * 1000;
@@ -27,19 +37,21 @@ export const dropOldDownloadedParts = (now = Date.now()) =>
     .delete();
 
 // Each part is kept on the device as soon as it arrives, so a download
-// stopped by a reload, a restart or a lost connection carries on with
-// the parts still missing instead of starting over.
+// stopped by a reload, a restart, a lost connection or `signal` carries
+// on with the parts still missing instead of starting over.
 async function fetchFile(
   ref: FileRef,
   readPart: ReadPart,
   onPart?: () => void,
+  signal?: AbortSignal,
 ): Promise<File> {
   const parts: Blob[] = [];
   for (const part of [...ref.parts].sort((a, b) => a.n - b.n)) {
+    if (signal?.aborted) throw stoppedError();
     const kept = await db.downloadedParts.get(partKey(ref, part.n));
     let blob = kept && kept.data.size === part.bytes ? kept.data : undefined;
     if (!blob) {
-      blob = await readPart(part);
+      blob = await readPart(part, signal);
       if (blob.size !== part.bytes) throw new IntegrityError(ref.name);
       // A single-part file needs no keeping: nothing would be saved by it.
       if (ref.parts.length > 1) {
@@ -66,15 +78,17 @@ async function fetchFile(
 
 // Joins the parts and checks size and hash before anything is saved.
 // Kept parts are removed once the whole file is back; callers save it.
+// `signal` stops it between and during parts; arrived parts stay kept.
 export async function fetchTrackFiles(
   manifest: Manifest,
   readPart: ReadPart,
   onPart?: () => void,
+  signal?: AbortSignal,
 ): Promise<TrackFiles> {
   await dropOldDownloadedParts();
-  const media = await fetchFile(manifest.media, readPart, onPart);
+  const media = await fetchFile(manifest.media, readPart, onPart, signal);
   const cover = manifest.cover
-    ? await fetchFile(manifest.cover, readPart, onPart)
+    ? await fetchFile(manifest.cover, readPart, onPart, signal)
     : undefined;
   await forgetParts(manifest.media);
   if (manifest.cover) await forgetParts(manifest.cover);

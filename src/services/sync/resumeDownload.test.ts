@@ -14,6 +14,7 @@ import {
   dropOldDownloadedParts,
   fetchTrackFiles,
   IntegrityError,
+  isStopped,
 } from "./download";
 import { uploadTrack } from "./upload";
 
@@ -105,6 +106,31 @@ describe("a download that stops partway", () => {
       await bytesOf((await fetchTrackFiles(manifest, readPart)).media),
     ).toEqual(video);
     expect(reads).toBe(4);
+  });
+
+  it("stops when no longer needed, keeps the parts, and carries on later", async () => {
+    const player = new AbortController();
+    const stopAfterTwo = async (part: PartRef, signal?: AbortSignal) => {
+      const blob = await readPart(part);
+      if (reads === 2) player.abort(); // another song is played
+      expect(signal).toBe(player.signal);
+      return blob;
+    };
+
+    const stopped = await fetchTrackFiles(
+      manifest,
+      stopAfterTwo,
+      undefined,
+      player.signal,
+    ).catch((e) => e);
+    expect(isStopped(stopped)).toBe(true);
+    expect(reads).toBe(2); // nothing fetched after the stop
+    expect(await db.downloadedParts.count()).toBe(2);
+
+    reads = 0;
+    const files = await fetchTrackFiles(manifest, readPart);
+    expect(reads).toBe(2);
+    expect(await bytesOf(files.media)).toEqual(video);
   });
 
   it("drops parts of a download nobody finished within a week", async () => {
