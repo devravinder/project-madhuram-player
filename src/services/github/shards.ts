@@ -1,4 +1,10 @@
-import { realSleep, waitForHead, writeTextFile, type Sleep } from "./discovery";
+import {
+  LIBRARY_DESCRIPTION,
+  realSleep,
+  waitForHead,
+  writeTextFile,
+  type Sleep,
+} from "./discovery";
 import { APP_MARKER, type LibraryIndex, type RepoInfo } from "./indexTypes";
 import { LibraryRepo } from "./library";
 
@@ -76,7 +82,7 @@ async function createShard(
 
     const created = await api.createRepo(
       name,
-      `Madhuram music library, part ${n}`,
+      `${LIBRARY_DESCRIPTION}, part ${n}`,
       isPrivate,
     );
     await waitForHead(api, owner, name, created.default_branch, sleep);

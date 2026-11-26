@@ -26,7 +26,12 @@ const HEAD_ATTEMPTS = 6;
 const HEAD_DELAY_MS = 1000;
 
 export type Sleep = (ms: number) => Promise<void>;
-export const realSleep: Sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+export const realSleep: Sleep = (ms) =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
+// Every library repo, and each of its overflow repos, starts its GitHub
+// description with this, so leftovers can be found later.
+export const LIBRARY_DESCRIPTION = "Madhuram music library";
 
 export async function writeTextFile(
   api: GithubApi,
@@ -86,7 +91,14 @@ export const findOrCreateLibrary = (
   config: LibraryConfig,
   sleep: Sleep = realSleep,
 ) =>
-  findOrCreateRepo(api, owner, repoName, "library", () => createEmptyIndex(repoName, config), sleep);
+  findOrCreateRepo(
+    api,
+    owner,
+    repoName,
+    "library",
+    () => createEmptyIndex(repoName, config),
+    sleep,
+  );
 
 // Reuse a repo with the expected kind of index, adopt an empty repo, create
 // a missing one, and never touch a repo that belongs to something else.
@@ -104,12 +116,19 @@ export async function findOrCreateRepo(
   if (!repo) {
     const created = await api.createRepo(
       repoName,
-      role === "home" ? "Madhuram home: playlists and settings" : "Madhuram music library",
+      role === "home"
+        ? "Madhuram home: playlists and settings"
+        : LIBRARY_DESCRIPTION,
     );
     await waitForHead(api, owner, repoName, created.default_branch, sleep);
     const index = newIndex();
     await writeIndex(api, owner, repoName, created.default_branch, index);
-    return { status: "created", repo: repoName, branch: created.default_branch, index };
+    return {
+      status: "created",
+      repo: repoName,
+      branch: created.default_branch,
+      index,
+    };
   }
 
   const head = await api.getHead(owner, repoName, repo.default_branch);
@@ -120,7 +139,12 @@ export async function findOrCreateRepo(
     try {
       const index = parseIndex(existing.text);
       if (index.role !== role) return { status: "name-taken", repo: repoName };
-      return { status: "reused", repo: repoName, branch: repo.default_branch, index };
+      return {
+        status: "reused",
+        repo: repoName,
+        branch: repo.default_branch,
+        index,
+      };
     } catch (error) {
       if (error instanceof NotLibraryIndexError) {
         return { status: "name-taken", repo: repoName };
@@ -130,10 +154,16 @@ export async function findOrCreateRepo(
   }
 
   const root = head ? await api.getTree(owner, repoName, head.treeSha) : null;
-  const isEmpty = !root || root.every((entry) => HARMLESS_ROOT_FILES.test(entry.path));
+  const isEmpty =
+    !root || root.every((entry) => HARMLESS_ROOT_FILES.test(entry.path));
   if (!isEmpty) return { status: "name-taken", repo: repoName };
 
   const index = newIndex();
   await writeIndex(api, owner, repoName, repo.default_branch, index);
-  return { status: "adopted", repo: repoName, branch: repo.default_branch, index };
+  return {
+    status: "adopted",
+    repo: repoName,
+    branch: repo.default_branch,
+    index,
+  };
 }

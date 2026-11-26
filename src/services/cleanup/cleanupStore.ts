@@ -6,9 +6,12 @@ import { withScreenOn } from "@/services/wakeLock";
 export type CleanupRun = {
   at: number;
   deviceBytes: number;
+  brokenSongs?: number; // songs whose file was gone, removed
   githubFiles: number;
   githubBytes: number;
   githubSkipped?: boolean; // not signed in, so GitHub was not checked
+  owner?: string; // the GitHub account checked
+  leftoverRepos?: string[]; // music repos no library uses
 };
 
 export type CleanupState = {

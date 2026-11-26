@@ -1,4 +1,5 @@
 import db from "@/services/db";
+import { createPlaylist, getPlaylists } from "@/services/playlistService";
 import { deviceProvider } from "@/services/storage/deviceProvider";
 import type { TrackMeta } from "@/services/storage/types";
 import { makeFile, randomBytes } from "@/testing/files";
@@ -56,6 +57,8 @@ beforeEach(async () => {
     db.uploadedParts.clear(),
     db.outbox.clear(),
     db.followedSources.clear(),
+    db.syncState.clear(),
+    db.playlists.clear(),
   ]);
 });
 
@@ -69,7 +72,7 @@ describe("cleanDevice", () => {
 
     const result = await cleanDevice({ now: NOW });
 
-    expect(result).toEqual({ items: 1, bytes: 30 });
+    expect(result).toEqual({ items: 1, bytes: 30, brokenSongs: 0 });
     expect((await db.files.toArray()).map((f) => f.id).sort()).toEqual(
       [(await db.songs.get("song"))!.mediaId, "new.mp3"].sort(),
     );
@@ -92,6 +95,35 @@ describe("cleanDevice", () => {
     expect(
       (await db.downloadedParts.toArray()).map((p) => p.fileSha256),
     ).toEqual(["recent"]);
+  });
+
+  it("removes songs whose file is gone; a backed-up one stays on GitHub only", async () => {
+    for (const id of ["kept", "lost", "backed"]) {
+      await deviceProvider.writeTrack(meta(id), {
+        media: makeFile(`${id}.mp3`, randomBytes(10, 1)),
+      });
+    }
+    await db.syncState.put({ trackId: "backed", sha256: "x", library: "lib" });
+    await createPlaylist({
+      name: "Mix",
+      description: "",
+      songIds: ["lost", "backed"],
+    });
+    for (const id of ["lost", "backed"])
+      await db.files.delete((await db.songs.get(id))!.mediaId);
+
+    expect(await cleanDevice({ now: NOW, downloading: true })).toMatchObject({
+      brokenSongs: 0,
+    });
+    const result = await cleanDevice({ now: NOW });
+
+    expect(result.brokenSongs).toBe(2);
+    expect((await db.songs.toArray()).map((s) => s.id)).toEqual(["kept"]);
+    expect((await db.syncState.get("backed"))?.deviceRemoved).toBe(true);
+    // Download brings the backed-up one back into its playlist.
+    expect(
+      (await getPlaylists()).find((p) => p.name === "Mix")?.songIds,
+    ).toEqual(["backed"]);
   });
 
   it("removes upload records that will not carry on", async () => {

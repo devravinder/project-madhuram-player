@@ -58,6 +58,11 @@ import { syncSources } from "@/services/sync/sourcesSync";
 import { cleanDevice } from "@/services/cleanup/cleanDevice";
 import { cleanGithubLibrary } from "@/services/cleanup/cleanGithub";
 import { runCleanup } from "@/services/cleanup/cleanupStore";
+import {
+  findLeftoverRepos,
+  pruneUnfollows,
+  recoverAllShards,
+} from "@/services/cleanup/leftovers";
 import { getDownloads } from "@/services/public/downloads";
 import type { OutboxItem } from "@/types/music";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -593,6 +598,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           if (!signedIn) {
             return {
               deviceBytes: device.bytes,
+              brokenSongs: device.brokenSongs,
               githubFiles: 0,
               githubBytes: 0,
               githubSkipped: true,
@@ -600,6 +606,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           }
           const current = await openSession();
           await syncSources(current.home); // drops unfollows GitHub has
+          await pruneUnfollows(current.home);
+          await recoverAllShards(current.libraries);
           let githubFiles = 0;
           let githubBytes = 0;
           for (const library of current.libraries) {
@@ -607,8 +615,20 @@ export function SyncProvider({ children }: { children: ReactNode }) {
             githubFiles += result.files;
             githubBytes += result.bytes;
           }
+          const leftoverRepos = await findLeftoverRepos(
+            current.home,
+            current.libraries,
+            current.info.libraries,
+          );
           await refreshLibraries(current);
-          return { deviceBytes: device.bytes, githubFiles, githubBytes };
+          return {
+            deviceBytes: device.bytes,
+            brokenSongs: device.brokenSongs,
+            githubFiles,
+            githubBytes,
+            owner: current.home.owner,
+            leftoverRepos,
+          };
         },
         (problem) =>
           stopReasonOf(problem)?.reason === "offline"

@@ -1,4 +1,6 @@
 import db from "@/services/db";
+import { deleteSong } from "@/services/songsService";
+import { isBackedUp, removeFromDeviceOnly } from "@/services/sync/deleteTrack";
 
 // A file saved in the last hour may belong to a song still being added
 // (an import or a download saves the file first, then the song).
@@ -6,7 +8,11 @@ export const FILE_MIN_AGE_MS = 60 * 60 * 1000;
 // Parts of an unfinished download are kept a day for it to carry on.
 export const PART_MIN_AGE_MS = 24 * 60 * 60 * 1000;
 
-export type DeviceCleanResult = { items: number; bytes: number };
+export type DeviceCleanResult = {
+  items: number;
+  bytes: number;
+  brokenSongs: number; // songs whose file was gone, removed
+};
 
 export type DeviceCleanOptions = {
   now?: number;
@@ -14,13 +20,35 @@ export type DeviceCleanOptions = {
   signedIn?: boolean; // unfollows wait to reach the other devices
 };
 
+// A song whose file is gone (the browser cleared it) cannot play. A
+// backed-up one is kept on GitHub only, so Download brings it back;
+// any other is removed.
+async function removeBrokenSongs(): Promise<number> {
+  const songs = await db.songs.toArray();
+  const present = new Set(
+    await db.files
+      .where(":id")
+      .anyOf(songs.map((s) => s.mediaId))
+      .primaryKeys(),
+  );
+  const broken = songs.filter((s) => !present.has(s.mediaId));
+  for (const song of broken) {
+    if (await isBackedUp(song.id)) await removeFromDeviceOnly(song.id);
+    else await deleteSong(song.id);
+  }
+  return broken.length;
+}
+
 // Removes what no song uses any more: stored files, kept parts of
-// downloads and records of uploads that will not carry on.
+// downloads, records of uploads that will not carry on, and songs whose
+// file is gone.
 export async function cleanDevice({
   now = Date.now(),
   downloading = false,
   signedIn = false,
 }: DeviceCleanOptions = {}): Promise<DeviceCleanResult> {
+  // While something downloads, a song can briefly be without its file.
+  const brokenSongs = downloading ? 0 : await removeBrokenSongs();
   const songs = await db.songs.toArray();
   const used = new Set(
     songs.flatMap((s) => [s.mediaId, s.coverImageId]).filter(Boolean),
@@ -73,5 +101,5 @@ export async function cleanDevice({
     items += unfollowed.length;
   }
 
-  return { items, bytes };
+  return { items: items + brokenSongs, bytes, brokenSongs };
 }

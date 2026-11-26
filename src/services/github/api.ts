@@ -15,6 +15,7 @@ export type Repo = {
   private: boolean;
   default_branch: string;
   size?: number; // KiB, as GitHub reports it (can lag behind)
+  description?: string | null;
 };
 export type Head = { branch: string; commitSha: string; treeSha: string };
 export type TreeEntry = {

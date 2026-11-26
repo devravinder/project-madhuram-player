@@ -7,6 +7,7 @@ type Snapshot = Record<string, string>; // path -> blob id
 type FakeRepo = {
   name: string;
   private: boolean;
+  description?: string;
   blobs: Map<string, Uint8Array>;
   trees: Map<string, Snapshot>;
   commits: Map<string, { tree: string; parents: string[]; date?: string }>;
@@ -321,6 +322,7 @@ export class FakeGithub {
     name: string;
     private?: boolean;
     auto_init?: boolean;
+    description?: string;
   }) {
     if (this.repos.has(body.name)) {
       return json(
@@ -332,6 +334,7 @@ export class FakeGithub {
       );
     }
     const repo = this.emptyRepo(body.name, body.private ?? true);
+    repo.description = body.description;
     this.repos.set(body.name, repo);
     if (body.auto_init)
       await this.commitTo(
@@ -509,6 +512,7 @@ export class FakeGithub {
       private: repo.private,
       default_branch: BRANCH,
       size: Math.round(bytes / 1024),
+      description: repo.description ?? null,
     };
   }
 

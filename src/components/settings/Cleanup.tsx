@@ -7,7 +7,7 @@ import {
 } from "@/services/cleanup/cleanupStore";
 import { formatBytes } from "@/services/storageUsage";
 import { useQueryClient } from "@tanstack/react-query";
-import { Eraser, Loader2 } from "lucide-react";
+import { Eraser, ExternalLink, Loader2 } from "lucide-react";
 import { useSyncExternalStore } from "react";
 
 function lastRunText(last: CleanupRun) {
@@ -18,7 +18,38 @@ function lastRunText(last: CleanupRun) {
   const freed = last.deviceBytes + last.githubBytes;
   const result =
     freed > 0 ? `Freed ${formatBytes(freed)}.` : "Nothing to clean.";
-  return `Last run ${when}. ${result}`;
+  const broken = last.brokenSongs ?? 0;
+  const songs =
+    broken > 0
+      ? ` Removed ${broken} ${broken === 1 ? "song" : "songs"} with a missing file.`
+      : "";
+  return `Last run ${when}. ${result}${songs}`;
+}
+
+// Music repos no library uses; the user deletes them on GitHub.
+function LeftoverRepos({ owner, repos }: { owner: string; repos: string[] }) {
+  return (
+    <div className="flex flex-col gap-1 text-sm">
+      <p className="text-muted-foreground">
+        Not used by any library. Delete on GitHub if not needed:
+      </p>
+      <ul className="flex flex-col gap-1">
+        {repos.map((repo) => (
+          <li key={repo} className="min-w-0">
+            <a
+              href={`https://github.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/settings`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 max-w-full text-highlight underline"
+            >
+              <span className="truncate font-mono">{repo}</span>
+              <ExternalLink size={14} className="shrink-0" />
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 // Removes files no song uses, here and on GitHub.
@@ -62,6 +93,9 @@ export default function Cleanup() {
         <p role="alert" className="text-sm text-destructive">
           {error}
         </p>
+      )}
+      {!running && last?.owner && !!last.leftoverRepos?.length && (
+        <LeftoverRepos owner={last.owner} repos={last.leftoverRepos} />
       )}
     </div>
   );
