@@ -11,11 +11,11 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Link } from "@tanstack/react-router";
 import {
   Globe,
-  Link2,
   Lock,
   MoreVertical,
   Pencil,
   Plus,
+  Share2,
   Star,
   Trash2,
 } from "lucide-react";
@@ -27,8 +27,18 @@ const itemClass =
 
 const labelOf = (library: LibraryInfo) => library.displayName ?? library.name;
 
-async function copyLink(owner: string, library: string) {
+// Opens the phone's share sheet; where there is none, copies the link.
+async function share(owner: string, library: string, label: string) {
   const link = shareLink(owner, library);
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: label, url: link });
+      return;
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      // Not allowed here; copy the link instead.
+    }
+  }
   try {
     await navigator.clipboard.writeText(link);
     toast.success("Link copied");
@@ -248,10 +258,10 @@ function LibraryMenu({
             </DropdownMenu.Item>
             {!library.isPrivate && (
               <DropdownMenu.Item
-                onSelect={() => void copyLink(owner, library.name)}
+                onSelect={() => void share(owner, library.name, label)}
                 className={itemClass}
               >
-                <Link2 size={18} /> Copy link
+                <Share2 size={18} /> Share
               </DropdownMenu.Item>
             )}
             {!library.isDefault && (
