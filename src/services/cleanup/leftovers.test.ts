@@ -13,6 +13,7 @@ import { SHARD_MARKER_PATH } from "@/services/github/shards";
 import { FakeGithub } from "@/testing/fakeGithub";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  deleteLeftoverRepos,
   findLeftoverRepos,
   KEEP_UNFOLLOWS_MS,
   pruneUnfollows,
@@ -60,6 +61,37 @@ describe("findLeftoverRepos", () => {
       "old-music",
       "old-music-part-1",
     ]);
+  });
+});
+
+describe("deleteLeftoverRepos", () => {
+  it("deletes only chosen repos that are still unused", async () => {
+    await findOrCreateLibrary(api, fake.login, "old-music", CONFIG, noSleep);
+    await seedShard("old-music-part-1", "old-music");
+
+    // old-music became a library again since the scan: it is in use now.
+    const inUse = await deleteLeftoverRepos(
+      home,
+      [library],
+      [LIBRARY, "old-music"],
+      ["old-music", LIBRARY],
+    );
+    expect(inUse).toEqual({ deleted: [], failed: [], remaining: [] });
+    expect(fake.repos.has("old-music")).toBe(true);
+
+    const result = await deleteLeftoverRepos(
+      home,
+      [library],
+      [LIBRARY],
+      ["old-music-part-1"],
+    );
+    expect(result).toEqual({
+      deleted: ["old-music-part-1"],
+      failed: [],
+      remaining: ["old-music"],
+    });
+    expect(fake.repos.has("old-music-part-1")).toBe(false);
+    expect(fake.repos.has(LIBRARY)).toBe(true);
   });
 });
 

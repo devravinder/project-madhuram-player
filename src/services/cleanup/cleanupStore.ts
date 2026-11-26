@@ -11,7 +11,8 @@ export type CleanupRun = {
   githubBytes: number;
   githubSkipped?: boolean; // not signed in, so GitHub was not checked
   owner?: string; // the GitHub account checked
-  leftoverRepos?: string[]; // music repos no library uses
+  leftoverRepos?: string[]; // music repos no library uses, not deleted yet
+  deletedRepos?: number; // leftover repos deleted after this run
 };
 
 export type CleanupState = {
@@ -56,6 +57,40 @@ export async function runCleanup(
     const last = { at: Date.now(), ...(await withScreenOn(work)) };
     localStorage.setItem(LAST_KEY, JSON.stringify(last));
     set({ running: false, last });
+  } catch (error) {
+    set({ running: false, error: describe(error) });
+  }
+}
+
+export type RepoDeleteResult = {
+  deleted: string[];
+  failed: string[]; // GitHub refused these
+  remaining: string[]; // leftovers still on GitHub
+};
+
+// Deletes leftover repos found by the last run, one run at a time like
+// the clean up itself.
+export async function runRepoDelete(
+  work: () => Promise<RepoDeleteResult>,
+  describe: (error: unknown) => string,
+) {
+  if (state.running) return;
+  set({ running: true, error: undefined });
+  try {
+    const { deleted, failed, remaining } = await withScreenOn(work);
+    const last = state.last && {
+      ...state.last,
+      leftoverRepos: remaining,
+      deletedRepos: (state.last.deletedRepos ?? 0) + deleted.length,
+    };
+    if (last) localStorage.setItem(LAST_KEY, JSON.stringify(last));
+    set({
+      running: false,
+      last,
+      error: failed.length
+        ? `GitHub did not delete ${failed.join(", ")}. The token needs Administration (read and write).`
+        : undefined,
+    });
   } catch (error) {
     set({ running: false, error: describe(error) });
   }

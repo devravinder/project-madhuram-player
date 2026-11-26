@@ -28,10 +28,27 @@ test("clean up runs once at a time and shows when it last ran", async ({ page })
   await expect(page.getByText(/^Last run .+\. Freed 2(\.0)? KB\.$/)).toBeVisible({ timeout: 15_000 });
   await expect(button).toBeEnabled();
   await expect(button).toHaveText("Clean up");
+
+  // It asks before deleting the unused repo; Cancel keeps it, listed.
+  const ask = page.locator("[data-sonner-toast]", { hasText: "Delete old-music?" });
+  await expect(ask).toContainText("This can't be undone. It is deleted on GitHub too.");
+  await ask.getByRole("button", { name: "Cancel" }).click();
+  const repoExists = () => page.evaluate(() => (window as any).__fake.repos.has("old-music"));
+  expect(await repoExists()).toBe(true);
   await expect(page.getByRole("link", { name: "old-music" })).toHaveAttribute(
     "href",
-    "https://github.com/tester/old-music/settings",
+    "https://github.com/tester/old-music",
   );
+
+  // Delete from the list, after confirming.
+  await page.getByRole("button", { name: "Delete old-music" }).click();
+  await page
+    .locator("[data-sonner-toast]", { hasText: "Delete old-music?" })
+    .getByRole("button", { name: "Delete" })
+    .click();
+  await expect(page.getByText(/Deleted 1 repo\.$/)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("link", { name: "old-music" })).toHaveCount(0);
+  expect(await repoExists()).toBe(false);
 
   // Still shown after leaving the page and coming back.
   await page.goto("/#/library");

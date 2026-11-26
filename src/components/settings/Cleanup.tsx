@@ -1,4 +1,4 @@
-import { Button } from "@/components/Elements";
+import { Button, IconButton } from "@/components/Elements";
 import { useSync } from "@/context/SyncContext";
 import {
   getCleanup,
@@ -7,7 +7,7 @@ import {
 } from "@/services/cleanup/cleanupStore";
 import { formatBytes } from "@/services/storageUsage";
 import { useQueryClient } from "@tanstack/react-query";
-import { Eraser, ExternalLink, Loader2 } from "lucide-react";
+import { Eraser, ExternalLink, Loader2, Trash2 } from "lucide-react";
 import { useSyncExternalStore } from "react";
 
 function lastRunText(last: CleanupRun) {
@@ -23,31 +23,58 @@ function lastRunText(last: CleanupRun) {
     broken > 0
       ? ` Removed ${broken} ${broken === 1 ? "song" : "songs"} with a missing file.`
       : "";
-  return `Last run ${when}. ${result}${songs}`;
+  const repos = last.deletedRepos ?? 0;
+  const deletedRepos =
+    repos > 0 ? ` Deleted ${repos} ${repos === 1 ? "repo" : "repos"}.` : "";
+  return `Last run ${when}. ${result}${songs}${deletedRepos}`;
 }
 
-// Music repos no library uses; the user deletes them on GitHub.
-function LeftoverRepos({ owner, repos }: { owner: string; repos: string[] }) {
+// Music repos no library uses; deleted on GitHub after a confirmation.
+function LeftoverRepos({
+  owner,
+  repos,
+  disabled,
+}: {
+  owner: string;
+  repos: string[];
+  disabled: boolean;
+}) {
+  const { deleteLeftovers } = useSync();
   return (
     <div className="flex flex-col gap-1 text-sm">
-      <p className="text-muted-foreground">
-        Not used by any library. Delete on GitHub if not needed:
-      </p>
+      <p className="text-muted-foreground">Not used by any library:</p>
       <ul className="flex flex-col gap-1">
         {repos.map((repo) => (
-          <li key={repo} className="min-w-0">
+          <li key={repo} className="flex items-center gap-2 min-w-0">
             <a
-              href={`https://github.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/settings`}
+              href={`https://github.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 max-w-full text-highlight underline"
+              className="flex-1 min-w-0 inline-flex items-center gap-1 text-highlight underline"
             >
               <span className="truncate font-mono">{repo}</span>
               <ExternalLink size={14} className="shrink-0" />
             </a>
+            <IconButton
+              aria-label={`Delete ${repo}`}
+              disabled={disabled}
+              onClick={() => void deleteLeftovers([repo])}
+              className="h-8 w-8 shrink-0 text-destructive disabled:opacity-60"
+            >
+              <Trash2 size={16} />
+            </IconButton>
           </li>
         ))}
       </ul>
+      {repos.length > 1 && (
+        <Button.Secondary
+          disabled={disabled}
+          onClick={() => void deleteLeftovers(repos)}
+          className="self-start text-base text-destructive disabled:opacity-60"
+        >
+          <Trash2 size={18} /> Delete all
+        </Button.Secondary>
+      )}
     </div>
   );
 }
@@ -94,8 +121,12 @@ export default function Cleanup() {
           {error}
         </p>
       )}
-      {!running && last?.owner && !!last.leftoverRepos?.length && (
-        <LeftoverRepos owner={last.owner} repos={last.leftoverRepos} />
+      {last?.owner && !!last.leftoverRepos?.length && (
+        <LeftoverRepos
+          owner={last.owner}
+          repos={last.leftoverRepos}
+          disabled={running || syncing}
+        />
       )}
     </div>
   );

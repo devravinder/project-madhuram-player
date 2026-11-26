@@ -1,4 +1,5 @@
 import { LIBRARY_DESCRIPTION } from "@/services/github/discovery";
+import { HttpError, RateLimitError } from "@/services/httpError";
 import {
   APP_MARKER,
   INDEX_PATH,
@@ -91,4 +92,34 @@ export async function pruneUnfollows(home: LibraryRepo, now = Date.now()) {
     };
   });
   return pruned;
+}
+
+// Deletes the chosen leftover repos on GitHub. They are looked up again
+// first, so a repo that came back into use meanwhile is never deleted.
+export async function deleteLeftoverRepos(
+  home: LibraryRepo,
+  libraries: LibraryRepo[],
+  listed: string[],
+  names: string[],
+) {
+  const leftovers = await findLeftoverRepos(home, libraries, listed);
+  const chosen = leftovers.filter((name) => names.includes(name));
+  const deleted: string[] = [];
+  const failed: string[] = [];
+  for (const name of chosen) {
+    try {
+      await home.api.deleteRepo(home.owner, name);
+      deleted.push(name);
+    } catch (error) {
+      // Offline or a rate limit stops here; a refusal is reported.
+      if (!(error instanceof HttpError) || error instanceof RateLimitError)
+        throw error;
+      failed.push(name);
+    }
+  }
+  return {
+    deleted,
+    failed,
+    remaining: leftovers.filter((name) => !deleted.includes(name)),
+  };
 }

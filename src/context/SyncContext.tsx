@@ -25,6 +25,7 @@ import {
   setDisplayName,
 } from "@/services/github/displayName";
 import { HttpError } from "@/services/httpError";
+import { confirmToast } from "@/services/confirmToast";
 import { isValidRepoName } from "@/services/settingsStore";
 import { deviceProvider } from "@/services/storage/deviceProvider";
 import {
@@ -57,8 +58,13 @@ import {
 import { syncSources } from "@/services/sync/sourcesSync";
 import { cleanDevice } from "@/services/cleanup/cleanDevice";
 import { cleanGithubLibrary } from "@/services/cleanup/cleanGithub";
-import { runCleanup } from "@/services/cleanup/cleanupStore";
 import {
+  getCleanup,
+  runCleanup,
+  runRepoDelete,
+} from "@/services/cleanup/cleanupStore";
+import {
+  deleteLeftoverRepos,
   findLeftoverRepos,
   pruneUnfollows,
   recoverAllShards,
@@ -160,6 +166,7 @@ type SyncContextValue = {
   ) => Promise<string | undefined>;
   renameSong: (id: string, names: SongNames) => Promise<void>;
   cleanUp: () => Promise<void>; // removes unused files here and on GitHub
+  deleteLeftovers: (repos: string[]) => Promise<void>; // asks first
 };
 
 const SyncContext = createContext<SyncContextValue | undefined>(undefined);
@@ -638,6 +645,48 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     [signedIn, openSession, refreshLibraries],
   );
 
+  // Deletes leftover repos on GitHub after the user confirms.
+  const deleteLeftovers = useCallback(
+    async (names: string[]) => {
+      if (!signedIn || names.length === 0) return;
+      const yes = await confirmToast({
+        title:
+          names.length === 1
+            ? `Delete ${names[0]}?`
+            : `Delete ${names.length} unused repos?`,
+        description: `${names.length > 1 ? `${names.join(", ")}. ` : ""}This can't be undone. It is deleted on GitHub too.`,
+        confirmLabel: "Delete",
+        destructive: true,
+      });
+      if (!yes) return;
+      await runRepoDelete(
+        async () => {
+          const current = await openSession();
+          return deleteLeftoverRepos(
+            current.home,
+            current.libraries,
+            current.info.libraries,
+            names,
+          );
+        },
+        (problem) =>
+          stopReasonOf(problem)?.reason === "offline"
+            ? "Offline. Try again when online."
+            : describe(problem),
+      );
+    },
+    [signedIn, openSession],
+  );
+
+  // A clean up that found leftover repos asks to delete them.
+  const cleanUpAll = useCallback(async () => {
+    const before = getCleanup().last?.at;
+    await cleanUp();
+    const { last, error: failed } = getCleanup();
+    if (failed || !last || last.at === before) return;
+    await deleteLeftovers(last.leftoverRepos ?? []);
+  }, [cleanUp, deleteLeftovers]);
+
   // Playlists and followed libraries follow the user without asking,
   // a moment after each change. They live in the private home repo.
   useEffect(() => {
@@ -740,7 +789,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         deleteLibrary,
         renameLibrary,
         renameSong,
-        cleanUp,
+        cleanUp: cleanUpAll,
+        deleteLeftovers,
       }}
     >
       {children}
